@@ -1,71 +1,116 @@
+import { Layer } from './Layer.js';
+
 /**
- * Sprite model — for Stage 1 this is a single-layer, single-frame sprite.
- * Owns an offscreen canvas that holds the pixel data.
+ * Sprite model — manages dimensions and an ordered array of layers.
+ * Provides backward-compatible getPixel/setPixel/setPixels that delegate
+ * to a specified layer (defaults to index 0 for legacy callers).
  */
 export class Sprite {
   constructor(width, height, bgColor = null) {
     this.width = width;
     this.height = height;
 
-    // Offscreen canvas holds the actual pixel data
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    /** @type {Layer[]} bottom-to-top order */
+    this.layers = [];
 
-    // Fill with background color if provided
-    if (bgColor) {
-      this.ctx.fillStyle = `rgb(${bgColor.r},${bgColor.g},${bgColor.b})`;
-      this.ctx.fillRect(0, 0, width, height);
-    }
-    // Otherwise leave transparent
+    // Create the initial background layer
+    const bg = new Layer(width, height, 'Background', bgColor);
+    this.layers.push(bg);
   }
 
-  getPixel(x, y) {
-    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return null;
-    const data = this.ctx.getImageData(x, y, 1, 1).data;
-    return { r: data[0], g: data[1], b: data[2], a: data[3] };
+  /** Get pixel from a specific layer (or composited result if layerIndex omitted). */
+  getPixel(x, y, layerIndex = 0) {
+    const layer = this.layers[layerIndex];
+    return layer ? layer.getPixel(x, y) : null;
   }
 
-  setPixel(x, y, color) {
-    if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
-    const img = this.ctx.createImageData(1, 1);
-    img.data[0] = color.r;
-    img.data[1] = color.g;
-    img.data[2] = color.b;
-    img.data[3] = color.a;
-    this.ctx.putImageData(img, x, y);
+  /** Set pixel on a specific layer. */
+  setPixel(x, y, color, layerIndex = 0) {
+    const layer = this.layers[layerIndex];
+    if (layer) layer.setPixel(x, y, color);
   }
 
-  /** Set a block of pixels efficiently using ImageData. */
-  setPixels(pixels) {
-    if (pixels.length === 0) return;
-    // Find bounding box
-    let minX = this.width, minY = this.height, maxX = 0, maxY = 0;
-    for (const p of pixels) {
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
-    }
-    minX = Math.max(0, minX);
-    minY = Math.max(0, minY);
-    maxX = Math.min(this.width - 1, maxX);
-    maxY = Math.min(this.height - 1, maxY);
-    const w = maxX - minX + 1;
-    const h = maxY - minY + 1;
-    if (w <= 0 || h <= 0) return;
+  /** Set pixels on a specific layer. */
+  setPixels(pixels, layerIndex = 0) {
+    const layer = this.layers[layerIndex];
+    if (layer) layer.setPixels(pixels);
+  }
 
-    const imgData = this.ctx.getImageData(minX, minY, w, h);
-    const data = imgData.data;
-    for (const p of pixels) {
-      if (p.x < 0 || p.y < 0 || p.x >= this.width || p.y >= this.height) continue;
-      const i = ((p.y - minY) * w + (p.x - minX)) * 4;
-      data[i] = p.color.r;
-      data[i + 1] = p.color.g;
-      data[i + 2] = p.color.b;
-      data[i + 3] = p.color.a;
+  /** Add a new transparent layer above the given index. Returns the new layer's index. */
+  addLayer(name, aboveIndex = null) {
+    const layer = new Layer(this.width, this.height, name || `Layer ${this.layers.length}`);
+    const insertAt = aboveIndex !== null ? aboveIndex + 1 : this.layers.length;
+    this.layers.splice(insertAt, 0, layer);
+    return insertAt;
+  }
+
+  /** Remove a layer by index. Returns the removed layer, or null. */
+  removeLayer(index) {
+    if (this.layers.length <= 1) return null; // must keep at least 1 layer
+    const [removed] = this.layers.splice(index, 1);
+    return removed;
+  }
+
+  /** Duplicate a layer. Returns the new layer's index. */
+  duplicateLayer(index) {
+    const layer = this.layers[index];
+    if (!layer) return -1;
+    const copy = layer.duplicate();
+    this.layers.splice(index + 1, 0, copy);
+    return index + 1;
+  }
+
+  /** Move a layer from one index to another. */
+  moveLayer(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const [layer] = this.layers.splice(fromIndex, 1);
+    this.layers.splice(toIndex, 0, layer);
+  }
+
+  /** Merge a layer down into the one below it. Returns the merged layer index. */
+  mergeDown(index) {
+    if (index <= 0 || index >= this.layers.length) return -1;
+    const upper = this.layers[index];
+    const lower = this.layers[index - 1];
+    // Composite upper onto lower
+    lower.ctx.globalAlpha = upper.opacity / 100;
+    lower.ctx.globalCompositeOperation = upper.blendMode;
+    lower.ctx.drawImage(upper.canvas, 0, 0);
+    lower.ctx.globalAlpha = 1;
+    lower.ctx.globalCompositeOperation = 'source-over';
+    this.layers.splice(index, 1);
+    return index - 1;
+  }
+
+  /** Flatten all visible layers into a single layer. */
+  flatten() {
+    const result = new Layer(this.width, this.height, 'Background');
+    for (const layer of this.layers) {
+      if (!layer.visible) continue;
+      result.ctx.globalAlpha = layer.opacity / 100;
+      result.ctx.globalCompositeOperation = layer.blendMode;
+      result.ctx.drawImage(layer.canvas, 0, 0);
     }
-    this.ctx.putImageData(imgData, minX, minY);
+    result.ctx.globalAlpha = 1;
+    result.ctx.globalCompositeOperation = 'source-over';
+    this.layers = [result];
+  }
+
+  /**
+   * Composite all visible layers and return the result as a canvas.
+   * Useful for eyedropper sampling the final image.
+   */
+  getComposited() {
+    const c = document.createElement('canvas');
+    c.width = this.width;
+    c.height = this.height;
+    const ctx = c.getContext('2d');
+    for (const layer of this.layers) {
+      if (!layer.visible) continue;
+      ctx.globalAlpha = layer.opacity / 100;
+      ctx.globalCompositeOperation = layer.blendMode;
+      ctx.drawImage(layer.canvas, 0, 0);
+    }
+    return c;
   }
 }

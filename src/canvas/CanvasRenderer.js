@@ -29,17 +29,23 @@ export class CanvasRenderer {
     this._resize();
 
     // Listen to state changes
-    this.state.events.on('sprite:loaded', () => this.render());
-    this.state.events.on('view:zoom-changed', () => this.render());
-    this.state.events.on('view:pan-changed', () => this.render());
-    this.state.events.on('view:grid-changed', () => this.render());
-    this.state.events.on('sprite:modified', () => this.render());
+    const rerender = () => this.render();
+    this.state.events.on('sprite:loaded', rerender);
+    this.state.events.on('view:zoom-changed', rerender);
+    this.state.events.on('view:pan-changed', rerender);
+    this.state.events.on('view:grid-changed', rerender);
+    this.state.events.on('sprite:modified', rerender);
     this.state.events.on('cursor:moved', (pos) => { this._cursorPos = pos; this.render(); });
     this.state.events.on('cursor:left', () => { this._cursorPos = null; this.render(); });
-    this.state.events.on('brush:size-changed', () => this.render());
-    this.state.events.on('brush:shape-changed', () => this.render());
-    this.state.events.on('preview:changed', () => this.render());
-    this.state.events.on('selection:changed', () => this.render());
+    this.state.events.on('brush:size-changed', rerender);
+    this.state.events.on('brush:shape-changed', rerender);
+    this.state.events.on('preview:changed', rerender);
+    this.state.events.on('selection:changed', rerender);
+    this.state.events.on('layer:selected', rerender);
+    this.state.events.on('layer:visibility-changed', rerender);
+    this.state.events.on('layer:opacity-changed', rerender);
+    this.state.events.on('layer:blend-changed', rerender);
+    this.state.events.on('layer:reordered', rerender);
 
     // Start marching ants animation loop
     this._animateSelection();
@@ -136,9 +142,16 @@ export class CanvasRenderer {
     ctx.fillRect(ox, oy, sw, sh);
     ctx.restore();
 
-    // Draw sprite (nearest-neighbor scaling)
+    // Draw layers (nearest-neighbor scaling, bottom-to-top compositing)
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sprite.canvas, ox, oy, sw, sh);
+    for (const layer of sprite.layers) {
+      if (!layer.visible) continue;
+      ctx.globalAlpha = layer.opacity / 100;
+      ctx.globalCompositeOperation = layer.blendMode;
+      ctx.drawImage(layer.canvas, ox, oy, sw, sh);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
 
     // Draw pixel grid
     if (this.state.showGrid && zoom >= 4) {

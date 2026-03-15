@@ -33,8 +33,8 @@ export class PencilTool extends Tool {
   }
 
   _draw(from, to, color, state, isRightButton) {
-    const sprite = state.sprite;
-    if (!sprite) return;
+    const layer = state.activeLayer;
+    if (!layer) return;
 
     const rawLine = bresenhamLine(from.x, from.y, to.x, to.y);
     const line = state.pixelPerfect ? pixelPerfectFilter(rawLine) : rawLine;
@@ -48,7 +48,7 @@ export class PencilTool extends Tool {
         if (seen.has(key)) continue;
         seen.add(key);
         const finalColor = state.shadingInk
-          ? this._shadePixel(sprite, s.x, s.y, isRightButton)
+          ? this._shadePixel(layer, s.x, s.y, isRightButton)
           : s.color;
         pixels.push({ x: s.x, y: s.y, color: finalColor });
       }
@@ -61,8 +61,8 @@ export class PencilTool extends Tool {
    * Shift the existing pixel at (x,y) lighter or darker by 10% lightness.
    * Right-button = lighten, left-button = darken.
    */
-  _shadePixel(sprite, x, y, lighten) {
-    const existing = sprite.getPixel(x, y);
+  _shadePixel(layer, x, y, lighten) {
+    const existing = layer.getPixel(x, y);
     if (!existing || existing.a === 0) return existing ?? { r: 0, g: 0, b: 0, a: 0 };
     const { h, s, l } = rgbToHsl(existing.r, existing.g, existing.b);
     const newL = Math.max(0, Math.min(1, l + (lighten ? 0.10 : -0.10)));

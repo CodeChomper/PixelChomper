@@ -27,6 +27,14 @@ export class MenuBar {
         { label: 'Zoom Out', action: 'view:zoom-out', shortcut: '-' },
         { label: 'Fit to Screen', action: 'view:fit', shortcut: 'Ctrl+0' },
       ],
+      'Layer': [
+        { label: 'Add Layer', action: 'layer:add' },
+        { label: 'Duplicate Layer', action: 'layer:duplicate' },
+        { label: 'Remove Layer', action: 'layer:remove' },
+        { type: 'separator' },
+        { label: 'Merge Down', action: 'layer:merge-down' },
+        { label: 'Flatten', action: 'layer:flatten' },
+      ],
       'Help': [
         { label: 'Keyboard Shortcuts...', action: 'help:shortcuts', shortcut: 'F1' },
       ],

@@ -231,7 +231,8 @@ export class CanvasInput {
 
   _cutSelection() {
     this._copySelection();
-    if (!this.state.selection || !this.state.sprite) return;
+    const layer = this.state.activeLayer;
+    if (!this.state.selection || !layer) return;
     const mask = this.state.selection;
     const w = this.state.sprite.width;
     const transparent = { r: 0, g: 0, b: 0, a: 0 };
@@ -242,19 +243,20 @@ export class CanvasInput {
         pixels.push({ x, y, color: transparent });
       }
     }
-    this.state.sprite.setPixels(pixels);
+    layer.setPixels(pixels);
     this.state.events.emit('sprite:modified');
   }
 
   _copySelection() {
-    if (!this.state.selection || !this.state.sprite) return;
+    const layer = this.state.activeLayer;
+    if (!this.state.selection || !layer) return;
     const mask = this.state.selection;
     const w = this.state.sprite.width;
     const pixels = [];
     for (let i = 0; i < mask.length; i++) {
       if (mask[i]) {
         const x = i % w, y = Math.floor(i / w);
-        const color = this.state.sprite.getPixel(x, y);
+        const color = layer.getPixel(x, y);
         if (color) pixels.push({ x, y, color });
       }
     }
@@ -262,9 +264,10 @@ export class CanvasInput {
   }
 
   _pasteClipboard() {
-    if (!this.state.clipboard || !this.state.sprite) return;
+    const layer = this.state.activeLayer;
+    if (!this.state.clipboard || !layer) return;
     const { pixels } = this.state.clipboard;
-    this.state.sprite.setPixels(pixels);
+    layer.setPixels(pixels);
     this.state.events.emit('sprite:modified');
   }
 }

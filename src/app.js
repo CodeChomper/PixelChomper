@@ -21,6 +21,7 @@ import { Toolbar } from './ui/Toolbar.js';
 import { ToolOptions } from './ui/ToolOptions.js';
 import { StatusBar } from './ui/StatusBar.js';
 import { ColorPanel } from './ui/ColorPanel.js';
+import { LayerPanel } from './ui/LayerPanel.js';
 import { Dialog } from './ui/Dialog.js';
 import { HelpDialog } from './ui/HelpDialog.js';
 import { clamp, MIN_ZOOM, MAX_ZOOM } from './core/Constants.js';
@@ -77,7 +78,8 @@ class App {
     this.toolbar = new Toolbar(this.state, document.getElementById('toolbar'), this.toolManager);
     this.toolOptions = new ToolOptions(this.state, document.getElementById('tooloptions'));
     this.statusBar = new StatusBar(this.state, document.getElementById('statusbar'));
-    this.colorPanel = new ColorPanel(this.state, document.getElementById('panel'));
+    this.colorPanel = new ColorPanel(this.state, document.getElementById('colors-panel'));
+    this.layerPanel = new LayerPanel(this.state, document.getElementById('layers-panel'));
 
     // Input handling
     this.canvasInput = new CanvasInput(this.state, this.renderer, this.toolManager);
@@ -119,6 +121,13 @@ class App {
     this.state.events.on('edit:paste', () => {
       this.canvasInput._pasteClipboard();
     });
+
+    // Layer menu
+    this.state.events.on('layer:add', () => this.state.addLayer());
+    this.state.events.on('layer:duplicate', () => this.state.duplicateLayer());
+    this.state.events.on('layer:remove', () => this.state.removeLayer());
+    this.state.events.on('layer:merge-down', () => this.state.mergeDown());
+    this.state.events.on('layer:flatten', () => this.state.flattenLayers());
 
     // Help
     this.state.events.on('help:shortcuts', () => HelpDialog.show());

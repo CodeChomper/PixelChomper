@@ -32,6 +32,9 @@ export class State {
     this.sprayRadius = 10;          // spray tool radius
     this.sprayDensity = 50;         // spray tool density (0-100)
 
+    // Stage 4 state
+    this.activeLayerIndex = 0;      // index into sprite.layers[]
+
     // Stage 3 state
     this.shadingInk = false;        // pencil lightens/darkens instead of replacing
     this.activePalette = null;      // Palette instance or null
@@ -86,7 +89,122 @@ export class State {
 
   setSprite(sprite) {
     this.sprite = sprite;
+    this.activeLayerIndex = 0;
     this.events.emit('sprite:loaded', sprite);
+  }
+
+  /** Get the currently active layer, or null. */
+  get activeLayer() {
+    if (!this.sprite) return null;
+    return this.sprite.layers[this.activeLayerIndex] || null;
+  }
+
+  setActiveLayer(index) {
+    if (!this.sprite || index < 0 || index >= this.sprite.layers.length) return;
+    this.activeLayerIndex = index;
+    this.events.emit('layer:selected', index);
+  }
+
+  addLayer(name) {
+    if (!this.sprite) return;
+    const newIndex = this.sprite.addLayer(name, this.activeLayerIndex);
+    this.activeLayerIndex = newIndex;
+    this.events.emit('layer:added', newIndex);
+    this.events.emit('layer:selected', newIndex);
+    this.events.emit('sprite:modified');
+  }
+
+  removeLayer() {
+    if (!this.sprite || this.sprite.layers.length <= 1) return;
+    const removed = this.sprite.removeLayer(this.activeLayerIndex);
+    if (!removed) return;
+    if (this.activeLayerIndex >= this.sprite.layers.length) {
+      this.activeLayerIndex = this.sprite.layers.length - 1;
+    }
+    this.events.emit('layer:removed');
+    this.events.emit('layer:selected', this.activeLayerIndex);
+    this.events.emit('sprite:modified');
+  }
+
+  duplicateLayer() {
+    if (!this.sprite) return;
+    const newIndex = this.sprite.duplicateLayer(this.activeLayerIndex);
+    if (newIndex < 0) return;
+    this.activeLayerIndex = newIndex;
+    this.events.emit('layer:added', newIndex);
+    this.events.emit('layer:selected', newIndex);
+    this.events.emit('sprite:modified');
+  }
+
+  moveLayer(fromIndex, toIndex) {
+    if (!this.sprite) return;
+    this.sprite.moveLayer(fromIndex, toIndex);
+    this.activeLayerIndex = toIndex;
+    this.events.emit('layer:reordered');
+    this.events.emit('layer:selected', toIndex);
+    this.events.emit('sprite:modified');
+  }
+
+  mergeDown() {
+    if (!this.sprite) return;
+    const newIndex = this.sprite.mergeDown(this.activeLayerIndex);
+    if (newIndex < 0) return;
+    this.activeLayerIndex = newIndex;
+    this.events.emit('layer:merged');
+    this.events.emit('layer:selected', newIndex);
+    this.events.emit('sprite:modified');
+  }
+
+  flattenLayers() {
+    if (!this.sprite) return;
+    this.sprite.flatten();
+    this.activeLayerIndex = 0;
+    this.events.emit('layer:flattened');
+    this.events.emit('layer:selected', 0);
+    this.events.emit('sprite:modified');
+  }
+
+  setLayerVisibility(index, visible) {
+    if (!this.sprite) return;
+    const layer = this.sprite.layers[index];
+    if (!layer) return;
+    layer.visible = visible;
+    this.events.emit('layer:visibility-changed', index);
+    this.events.emit('sprite:modified');
+  }
+
+  setLayerOpacity(index, opacity) {
+    if (!this.sprite) return;
+    const layer = this.sprite.layers[index];
+    if (!layer) return;
+    layer.opacity = Math.max(0, Math.min(100, opacity));
+    this.events.emit('layer:opacity-changed', index);
+    this.events.emit('sprite:modified');
+  }
+
+  setLayerBlendMode(index, mode) {
+    if (!this.sprite) return;
+    const layer = this.sprite.layers[index];
+    if (!layer) return;
+    layer.blendMode = mode;
+    this.events.emit('layer:blend-changed', index);
+    this.events.emit('sprite:modified');
+  }
+
+  setLayerName(index, name) {
+    if (!this.sprite) return;
+    const layer = this.sprite.layers[index];
+    if (!layer) return;
+    layer.name = name;
+    this.events.emit('layer:renamed', index);
+  }
+
+  setLayerLocked(index, locked) {
+    if (!this.sprite) return;
+    const layer = this.sprite.layers[index];
+    if (!layer) return;
+    layer.locked = locked;
+    this.events.emit('layer:lock-changed', index);
   }
 
   toggleGrid() {
@@ -100,13 +218,15 @@ export class State {
    */
   commitPixels(pixels) {
     if (!this.sprite || !pixels || !pixels.length) return;
+    const layer = this.activeLayer;
+    if (!layer || layer.locked) return;
     const filtered = this.selection
       ? pixels.filter(p => {
           const idx = p.y * this.sprite.width + p.x;
           return this.selection[idx] === 1;
         })
       : pixels;
-    this.sprite.setPixels(filtered);
+    layer.setPixels(filtered);
     this.events.emit('sprite:modified');
   }
 

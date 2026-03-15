@@ -7,9 +7,10 @@ export class MagicWandTool extends Tool {
   }
 
   onPointerDown(pos, event, state) {
-    if (!state.sprite) return;
+    const layer = state.activeLayer;
+    if (!layer) return;
     if (pos.x < 0 || pos.x >= state.sprite.width || pos.y < 0 || pos.y >= state.sprite.height) return;
-    const mask = magicWandSelect(state.sprite, pos.x, pos.y, state.fillTolerance, state.fillContiguous);
+    const mask = magicWandSelect(layer, pos.x, pos.y, state.fillTolerance, state.fillContiguous);
     state.setSelection(mask);
   }
 
