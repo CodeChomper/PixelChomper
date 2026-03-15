@@ -21,9 +21,15 @@ export class CanvasInput {
     this.container.addEventListener('pointerdown', (e) => this._onPointerDown(e));
     this.container.addEventListener('pointermove', (e) => this._onPointerMove(e));
     this.container.addEventListener('pointerup', (e) => this._onPointerUp(e));
-    this.container.addEventListener('pointerleave', (e) => this._onPointerUp(e));
+    this.container.addEventListener('pointerleave', (e) => {
+      this._onPointerUp(e);
+      this.state.events.emit('cursor:left');
+    });
     this.container.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
     this.container.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Hide native cursor — we draw our own brush cursor on the canvas
+    this.container.style.cursor = 'none';
 
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
     document.addEventListener('keyup', (e) => this._onKeyUp(e));
@@ -76,7 +82,7 @@ export class CanvasInput {
     if (this.state.isPanning) {
       this.state.isPanning = false;
       this._panStart = null;
-      this.container.style.cursor = this._spaceHeld ? 'grab' : 'crosshair';
+      this.container.style.cursor = this._spaceHeld ? 'grab' : 'none';
       return;
     }
 
@@ -145,7 +151,7 @@ export class CanvasInput {
     if (e.key === ' ') {
       this._spaceHeld = false;
       if (!this.state.isPanning) {
-        this.container.style.cursor = 'crosshair';
+        this.container.style.cursor = 'none';
       }
     }
   }

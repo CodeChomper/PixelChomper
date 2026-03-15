@@ -1,4 +1,5 @@
 import { CHECKER_SIZE } from '../core/Constants.js';
+import { getBrushStamp } from '../canvas/PixelUtils.js';
 
 /**
  * Renders the sprite onto the visible display canvas.
@@ -16,6 +17,9 @@ export class CanvasRenderer {
     // Checkerboard pattern canvas (cached)
     this._checkerPattern = null;
 
+    // Cursor position in sprite coords (null when cursor is outside canvas)
+    this._cursorPos = null;
+
     this._resizeObserver = new ResizeObserver(() => this._resize());
     this._resizeObserver.observe(this.container);
     this._resize();
@@ -26,6 +30,10 @@ export class CanvasRenderer {
     this.state.events.on('view:pan-changed', () => this.render());
     this.state.events.on('view:grid-changed', () => this.render());
     this.state.events.on('sprite:modified', () => this.render());
+    this.state.events.on('cursor:moved', (pos) => { this._cursorPos = pos; this.render(); });
+    this.state.events.on('cursor:left', () => { this._cursorPos = null; this.render(); });
+    this.state.events.on('brush:size-changed', () => this.render());
+    this.state.events.on('brush:shape-changed', () => this.render());
   }
 
   _resize() {
@@ -122,6 +130,46 @@ export class CanvasRenderer {
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.lineWidth = 1;
     ctx.strokeRect(ox - 0.5, oy - 0.5, sw + 1, sh + 1);
+
+    // Draw brush cursor
+    if (this._cursorPos && !this.state.isPanning) {
+      this._drawBrushCursor(ctx, ox, oy, zoom);
+    }
+  }
+
+  _drawBrushCursor(ctx, ox, oy, zoom) {
+    const pos = this._cursorPos;
+    const offsets = getBrushStamp(this.state.brushSize, this.state.brushShape);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1;
+
+    // Fill each pixel of the brush stamp
+    for (const { dx, dy } of offsets) {
+      const px = pos.x + dx;
+      const py = pos.y + dy;
+      const sx = ox + px * zoom;
+      const sy = oy + py * zoom;
+      ctx.fillRect(sx, sy, zoom, zoom);
+    }
+
+    // Draw an outline around the entire brush shape
+    // Use a set for fast lookup of which cells are filled
+    const filled = new Set(offsets.map(({ dx, dy }) => `${pos.x + dx},${pos.y + dy}`));
+    ctx.beginPath();
+    for (const { dx, dy } of offsets) {
+      const px = pos.x + dx;
+      const py = pos.y + dy;
+      const sx = ox + px * zoom;
+      const sy = oy + py * zoom;
+      // Draw edge segments where there is no adjacent filled cell
+      if (!filled.has(`${px},${py - 1}`)) { ctx.moveTo(sx, sy + 0.5); ctx.lineTo(sx + zoom, sy + 0.5); }
+      if (!filled.has(`${px},${py + 1}`)) { ctx.moveTo(sx, sy + zoom - 0.5); ctx.lineTo(sx + zoom, sy + zoom - 0.5); }
+      if (!filled.has(`${px - 1},${py}`)) { ctx.moveTo(sx + 0.5, sy); ctx.lineTo(sx + 0.5, sy + zoom); }
+      if (!filled.has(`${px + 1},${py}`)) { ctx.moveTo(sx + zoom - 0.5, sy); ctx.lineTo(sx + zoom - 0.5, sy + zoom); }
+    }
+    ctx.stroke();
   }
 
   _drawGrid(ctx, ox, oy, sw, sh, zoom, cols, rows) {
