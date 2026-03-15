@@ -21,6 +21,7 @@ export class RectTool extends Tool {
   onPointerUp(pos, event, state) {
     if (!this._start) return;
     const color = this._btn === 2 ? state.bgColor : state.fgColor;
+    state.pushRecentColor(color);
     const pts = rectPixels(this._start.x, this._start.y, pos.x, pos.y, state.shapeMode === 'filled');
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));
     state.setPreviewPixels(null);

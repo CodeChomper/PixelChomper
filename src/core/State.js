@@ -31,6 +31,12 @@ export class State {
     this.fillContiguous = true;     // flood fill contiguous toggle
     this.sprayRadius = 10;          // spray tool radius
     this.sprayDensity = 50;         // spray tool density (0-100)
+
+    // Stage 3 state
+    this.shadingInk = false;        // pencil lightens/darkens instead of replacing
+    this.activePalette = null;      // Palette instance or null
+    this.recentColors = [];         // [{r,g,b,a}] most recent first
+    this._maxRecentColors = 8;
   }
 
   setTool(tool) {
@@ -147,5 +153,26 @@ export class State {
   setSprayDensity(d) {
     this.sprayDensity = d;
     this.events.emit('spray:density-changed', d);
+  }
+
+  setShadingInk(enabled) {
+    this.shadingInk = enabled;
+    this.events.emit('shading:changed', enabled);
+  }
+
+  setPalette(palette) {
+    this.activePalette = palette;
+    this.events.emit('palette:changed', palette);
+  }
+
+  pushRecentColor(color) {
+    this.recentColors = this.recentColors.filter(
+      c => !(c.r === color.r && c.g === color.g && c.b === color.b && c.a === color.a)
+    );
+    this.recentColors.unshift({ ...color });
+    if (this.recentColors.length > this._maxRecentColors) {
+      this.recentColors = this.recentColors.slice(0, this._maxRecentColors);
+    }
+    this.events.emit('color:recent-changed', this.recentColors);
   }
 }

@@ -33,6 +33,7 @@ export class CurveTool extends Tool {
   commit(state) {
     if (this._points.length < 2) { this.cancel(state); return; }
     const color = state.fgColor;
+    state.pushRecentColor(color);
     const [p0, p1, p2, p3] = this._getFullPoints();
     const pts = cubicBezierPixels(p0, p1, p2, p3);
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));

@@ -21,6 +21,7 @@ export class LineTool extends Tool {
   onPointerUp(pos, event, state) {
     if (!this._start) return;
     const color = this._btn === 2 ? state.bgColor : state.fgColor;
+    state.pushRecentColor(color);
     let line = bresenhamLine(this._start.x, this._start.y, pos.x, pos.y);
     if (state.pixelPerfect) line = pixelPerfectFilter(line);
     const pixels = line.flatMap(p => stampBrush(p.x, p.y, color, state.brushSize, state.brushShape));

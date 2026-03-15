@@ -21,6 +21,7 @@ export class EllipseTool extends Tool {
   onPointerUp(pos, event, state) {
     if (!this._start) return;
     const color = this._btn === 2 ? state.bgColor : state.fgColor;
+    state.pushRecentColor(color);
     const { cx, cy, rx, ry } = this._getBounds(this._start, pos);
     const pts = state.shapeMode === 'filled' ? filledEllipse(cx, cy, rx, ry) : midpointEllipse(cx, cy, rx, ry);
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));

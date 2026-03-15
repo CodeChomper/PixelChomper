@@ -37,6 +37,7 @@ export class PolygonTool extends Tool {
   commit(state) {
     if (this._vertices.length < 2) { this.cancel(state); return; }
     const color = state.fgColor;
+    state.pushRecentColor(color);
     const pts = polygonPixels(this._vertices, state.shapeMode === 'filled');
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));
     state.setPreviewPixels(null);

@@ -10,6 +10,7 @@ export class FillTool extends Tool {
     if (!state.sprite) return;
     if (pos.x < 0 || pos.x >= state.sprite.width || pos.y < 0 || pos.y >= state.sprite.height) return;
     const color = event.button === 2 ? state.bgColor : state.fgColor;
+    state.pushRecentColor(color);
     const pts = floodFill(state.sprite, pos.x, pos.y, state.fillTolerance, state.fillContiguous);
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));
     state.commitPixels(pixels);

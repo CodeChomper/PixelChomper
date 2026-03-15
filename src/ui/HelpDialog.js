@@ -74,6 +74,19 @@ export class HelpDialog {
               <tr><td>Cancel</td><td>Escape</td></tr>
             </tbody>
           </table>
+          <table class="help-table">
+            <caption>Color</caption>
+            <thead><tr><th>Action</th><th>Shortcut</th></tr></thead>
+            <tbody>
+              <tr><td>Swap FG/BG</td><td>X</td></tr>
+              <tr><td>Edit FG color</td><td>Click FG swatch</td></tr>
+              <tr><td>Edit BG color</td><td>Click BG swatch</td></tr>
+              <tr><td>Set FG from palette</td><td>Left-click color</td></tr>
+              <tr><td>Set BG from palette</td><td>Right-click color</td></tr>
+              <tr><td>Shading Ink (darken)</td><td>Shade + left drag</td></tr>
+              <tr><td>Shading Ink (lighten)</td><td>Shade + right drag</td></tr>
+            </tbody>
+          </table>
         </div>
       `;
       dialog.appendChild(body);

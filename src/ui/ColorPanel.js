@@ -1,23 +1,52 @@
 import { colorToCSS } from '../core/Constants.js';
+import { ColorPicker } from './ColorPicker.js';
+import { Palette } from '../model/Palette.js';
 
-/**
- * Right-side color panel — FG/BG swatches + simple palette.
- * Full color picker and palette system comes in Stage 3.
- */
+const PALETTE_PRESETS = [
+  { label: 'PICO-8',     file: 'assets/palettes/pico-8.json' },
+  { label: 'ENDESGA-32', file: 'assets/palettes/endesga-32.json' },
+  { label: 'Game Boy',   file: 'assets/palettes/game-boy.json' },
+  { label: 'Custom',     file: null },
+];
+
 export class ColorPanel {
   constructor(state, containerEl) {
     this.state = state;
     this.container = containerEl;
+    this._pickerTarget = 'fg'; // 'fg' or 'bg'
+    this._pickerVisible = false;
+    this._selectedPaletteIndex = -1;
     this._build();
 
-    this.state.events.on('color:fg-changed', () => this._updateSwatches());
-    this.state.events.on('color:bg-changed', () => this._updateSwatches());
+    state.events.on('color:fg-changed', () => {
+      this._updateSwatches();
+      if (this._pickerVisible && this._pickerTarget === 'fg') {
+        this._picker.setColor(state.fgColor);
+      }
+    });
+    state.events.on('color:bg-changed', () => {
+      this._updateSwatches();
+      if (this._pickerVisible && this._pickerTarget === 'bg') {
+        this._picker.setColor(state.bgColor);
+      }
+    });
+    state.events.on('color:recent-changed', () => this._updateRecent());
+    state.events.on('palette:changed', () => {
+      this._rebuildPaletteGrid();
+      if (this._isCustomPreset()) this._saveCustomPalette();
+    });
+    state.events.on('shading:changed', (v) => { this._shadingCb.checked = v; });
   }
 
   _build() {
     this.container.innerHTML = '';
+    this._buildColorSection();
+    this._buildPaletteSection();
+  }
 
-    // Color swatches section
+  // ── Color section ──────────────────────────────────────────────────────────
+
+  _buildColorSection() {
     const section = document.createElement('div');
     section.className = 'panel-section';
 
@@ -26,124 +55,96 @@ export class ColorPanel {
     title.textContent = 'Color';
     section.appendChild(title);
 
-    const swatches = document.createElement('div');
-    swatches.className = 'color-swatches';
+    // Swatch row: [FG/BG stack] [swap] [shading]
+    const swatchRow = document.createElement('div');
+    swatchRow.className = 'color-swatches';
 
     const stack = document.createElement('div');
     stack.className = 'color-swatch-stack';
 
     this._fgSwatch = document.createElement('div');
     this._fgSwatch.className = 'color-swatch fg';
-    this._fgSwatch.title = 'Foreground Color';
+    this._fgSwatch.title = 'Foreground (click to edit)';
+    this._fgSwatch.addEventListener('click', () => this._openPicker('fg'));
     stack.appendChild(this._fgSwatch);
 
     this._bgSwatch = document.createElement('div');
     this._bgSwatch.className = 'color-swatch bg';
-    this._bgSwatch.title = 'Background Color';
+    this._bgSwatch.title = 'Background (click to edit)';
+    this._bgSwatch.addEventListener('click', () => this._openPicker('bg'));
     stack.appendChild(this._bgSwatch);
 
-    swatches.appendChild(stack);
+    swatchRow.appendChild(stack);
 
     const swapBtn = document.createElement('button');
     swapBtn.className = 'color-swap-btn';
     swapBtn.innerHTML = '&#x21C4;';
     swapBtn.title = 'Swap Colors (X)';
     swapBtn.addEventListener('click', () => this.state.swapColors());
-    swatches.appendChild(swapBtn);
+    swatchRow.appendChild(swapBtn);
 
-    section.appendChild(swatches);
+    // Shading ink toggle
+    const shadingLabel = document.createElement('label');
+    shadingLabel.className = 'color-shading-label';
+    shadingLabel.title = 'Shading Ink: pencil lightens/darkens existing pixels instead of replacing';
+    this._shadingCb = document.createElement('input');
+    this._shadingCb.type = 'checkbox';
+    this._shadingCb.checked = this.state.shadingInk;
+    this._shadingCb.addEventListener('change', () => this.state.setShadingInk(this._shadingCb.checked));
+    shadingLabel.appendChild(this._shadingCb);
+    shadingLabel.append(' Shade');
+    swatchRow.appendChild(shadingLabel);
 
-    // Simple color inputs (native) for Stage 1
-    const fgRow = this._createColorInput('FG:', this.state.fgColor, (c) => this.state.setFGColor(c));
-    const bgRow = this._createColorInput('BG:', this.state.bgColor, (c) => this.state.setBGColor(c));
-    section.appendChild(fgRow);
-    section.appendChild(bgRow);
+    section.appendChild(swatchRow);
 
-    this.container.appendChild(section);
+    // Picker container (collapsed by default)
+    this._pickerContainer = document.createElement('div');
+    this._pickerContainer.className = 'color-picker-container';
+    this._pickerContainer.style.display = 'none';
+    section.appendChild(this._pickerContainer);
 
-    // Basic palette
-    this._buildPalette();
-
-    this._updateSwatches();
-  }
-
-  _createColorInput(labelText, initialColor, onChange) {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '6px';
-    row.style.marginTop = '4px';
-
-    const label = document.createElement('span');
-    label.textContent = labelText;
-    label.style.color = 'var(--text-secondary)';
-    label.style.fontSize = '11px';
-    label.style.width = '24px';
-    row.appendChild(label);
-
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = this._rgbToHex(initialColor);
-    input.style.width = '32px';
-    input.style.height = '24px';
-    input.style.border = '1px solid var(--border-color)';
-    input.style.borderRadius = '3px';
-    input.style.cursor = 'pointer';
-    input.addEventListener('input', () => {
-      const c = this._hexToRgb(input.value);
-      onChange(c);
-    });
-    row.appendChild(input);
-
-    return row;
-  }
-
-  _buildPalette() {
-    const section = document.createElement('div');
-    section.className = 'panel-section';
-
-    const title = document.createElement('div');
-    title.className = 'panel-section-title';
-    title.textContent = 'Palette';
-    section.appendChild(title);
-
-    const grid = document.createElement('div');
-    grid.className = 'palette-grid';
-
-    // Basic 64-color palette
-    const colors = this._generateBasicPalette();
-    for (const color of colors) {
-      const swatch = document.createElement('div');
-      swatch.className = 'palette-color';
-      swatch.style.backgroundColor = colorToCSS(color);
-      swatch.addEventListener('click', () => this.state.setFGColor(color));
-      swatch.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        this.state.setBGColor(color);
-      });
-      grid.appendChild(swatch);
-    }
-
-    section.appendChild(grid);
-    this.container.appendChild(section);
-  }
-
-  _generateBasicPalette() {
-    const colors = [];
-    // Grayscale row
-    for (let i = 0; i < 16; i++) {
-      const v = Math.round(i * 255 / 15);
-      colors.push({ r: v, g: v, b: v, a: 255 });
-    }
-    // Color rows
-    const hues = [0, 15, 30, 45, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 345, 360];
-    for (const sat of [1, 0.7, 0.4]) {
-      for (const hue of hues) {
-        const c = this._hslToRgb(hue / 360, sat, 0.5);
-        colors.push({ ...c, a: 255 });
+    this._picker = new ColorPicker(
+      this._pickerContainer,
+      this.state.fgColor,
+      (color) => {
+        if (this._pickerTarget === 'fg') {
+          this.state.setFGColor(color);
+        } else {
+          this.state.setBGColor(color);
+        }
       }
+    );
+
+    // Recent colors
+    const recentTitle = document.createElement('div');
+    recentTitle.className = 'panel-section-title';
+    recentTitle.style.marginTop = '8px';
+    recentTitle.textContent = 'Recent';
+    section.appendChild(recentTitle);
+
+    this._recentRow = document.createElement('div');
+    this._recentRow.className = 'recent-colors';
+    section.appendChild(this._recentRow);
+
+    this.container.appendChild(section);
+    this._updateSwatches();
+    this._updateRecent();
+  }
+
+  _openPicker(target) {
+    if (this._pickerTarget === target && this._pickerVisible) {
+      this._pickerContainer.style.display = 'none';
+      this._pickerVisible = false;
+      this._fgSwatch.classList.remove('picker-active');
+      this._bgSwatch.classList.remove('picker-active');
+      return;
     }
-    return colors;
+    this._pickerTarget = target;
+    this._pickerVisible = true;
+    this._pickerContainer.style.display = '';
+    this._picker.setColor(target === 'fg' ? this.state.fgColor : this.state.bgColor);
+    this._fgSwatch.classList.toggle('picker-active', target === 'fg');
+    this._bgSwatch.classList.toggle('picker-active', target === 'bg');
   }
 
   _updateSwatches() {
@@ -151,36 +152,146 @@ export class ColorPanel {
     this._bgSwatch.style.backgroundColor = colorToCSS(this.state.bgColor);
   }
 
-  _rgbToHex(c) {
-    return '#' + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('');
-  }
-
-  _hexToRgb(hex) {
-    const r = parseInt(hex.substr(1, 2), 16);
-    const g = parseInt(hex.substr(3, 2), 16);
-    const b = parseInt(hex.substr(5, 2), 16);
-    return { r, g, b, a: 255 };
-  }
-
-  _hslToRgb(h, s, l) {
-    let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
-      const hue2rgb = (p, q, t) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1/6) return p + (q - p) * 6 * t;
-        if (t < 1/2) return q;
-        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-        return p;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r = hue2rgb(p, q, h + 1/3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1/3);
+  _updateRecent() {
+    this._recentRow.innerHTML = '';
+    for (const color of (this.state.recentColors ?? [])) {
+      const swatch = document.createElement('div');
+      swatch.className = 'recent-color';
+      swatch.style.backgroundColor = colorToCSS(color);
+      swatch.title = `rgb(${color.r},${color.g},${color.b})`;
+      swatch.addEventListener('click', () => this.state.setFGColor(color));
+      swatch.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.state.setBGColor(color);
+      });
+      this._recentRow.appendChild(swatch);
     }
-    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+  }
+
+  // ── Palette section ────────────────────────────────────────────────────────
+
+  _buildPaletteSection() {
+    const section = document.createElement('div');
+    section.className = 'panel-section';
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'palette-title-row';
+
+    const title = document.createElement('div');
+    title.className = 'panel-section-title';
+    title.textContent = 'Palette';
+    titleRow.appendChild(title);
+
+    this._presetSelect = document.createElement('select');
+    this._presetSelect.className = 'palette-preset-select';
+    for (const preset of PALETTE_PRESETS) {
+      const opt = document.createElement('option');
+      opt.value = preset.file ?? '';
+      opt.textContent = preset.label;
+      this._presetSelect.appendChild(opt);
+    }
+    this._presetSelect.addEventListener('change', () => this._loadPreset());
+    titleRow.appendChild(this._presetSelect);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn palette-btn';
+    addBtn.title = 'Add foreground color to palette';
+    addBtn.textContent = '+';
+    addBtn.addEventListener('click', () => {
+      if (!this.state.activePalette) return;
+      this.state.activePalette.addColor(this.state.fgColor);
+      this.state.events.emit('palette:changed');
+    });
+    titleRow.appendChild(addBtn);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn palette-btn';
+    removeBtn.title = 'Remove selected color';
+    removeBtn.textContent = '−';
+    removeBtn.addEventListener('click', () => {
+      if (!this.state.activePalette || this._selectedPaletteIndex < 0) return;
+      this.state.activePalette.removeColor(this._selectedPaletteIndex);
+      this._selectedPaletteIndex = -1;
+      this.state.events.emit('palette:changed');
+    });
+    titleRow.appendChild(removeBtn);
+
+    section.appendChild(titleRow);
+
+    this._paletteGrid = document.createElement('div');
+    this._paletteGrid.className = 'palette-grid';
+    section.appendChild(this._paletteGrid);
+
+    this.container.appendChild(section);
+
+    // Load default preset
+    this._loadPreset();
+  }
+
+  async _loadPreset() {
+    const file = this._presetSelect.value;
+    if (!file) {
+      this.state.setPalette(this._loadCustomPalette());
+      return;
+    }
+    try {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      this.state.setPalette(Palette.fromJSON(json));
+    } catch (e) {
+      console.warn('Failed to load palette:', file, e);
+    }
+  }
+
+  _isCustomPreset() {
+    return this._presetSelect.value === '';
+  }
+
+  _saveCustomPalette() {
+    if (!this.state.activePalette) return;
+    try {
+      localStorage.setItem('pixelchomper:custom-palette', JSON.stringify(this.state.activePalette.toJSON()));
+    } catch { /* ignore */ }
+  }
+
+  _loadCustomPalette() {
+    try {
+      const saved = localStorage.getItem('pixelchomper:custom-palette');
+      if (saved) return Palette.fromJSON(JSON.parse(saved));
+    } catch { /* ignore */ }
+    return new Palette('Custom', []);
+  }
+
+  _rebuildPaletteGrid() {
+    const palette = this.state.activePalette;
+    this._paletteGrid.innerHTML = '';
+    this._selectedPaletteIndex = -1;
+    if (!palette) return;
+
+    palette.colors.forEach((color, i) => {
+      const swatch = document.createElement('div');
+      swatch.className = 'palette-color';
+      swatch.style.backgroundColor = colorToCSS(color);
+      swatch.title = `rgb(${color.r},${color.g},${color.b})`;
+      swatch.addEventListener('click', () => {
+        this._selectedPaletteIndex = i;
+        this._updatePaletteSelection();
+        this.state.setFGColor(color);
+      });
+      swatch.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this._selectedPaletteIndex = i;
+        this._updatePaletteSelection();
+        this.state.setBGColor(color);
+      });
+      this._paletteGrid.appendChild(swatch);
+    });
+  }
+
+  _updatePaletteSelection() {
+    this._paletteGrid.querySelectorAll('.palette-color').forEach((s, i) => {
+      s.classList.toggle('selected', i === this._selectedPaletteIndex);
+    });
   }
 }
