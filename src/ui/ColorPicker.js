@@ -5,6 +5,12 @@ const ALPHA_H = 14;     // alpha slider height
 const OUTER_R = SIZE / 2 - 2;
 const INNER_R = OUTER_R * 0.55;
 
+const HARMONY_OFFSETS = {
+  complementary: [180],
+  triadic:       [120, 240],
+  analogous:     [30, 330],
+};
+
 /**
  * HSV color picker widget.
  * Renders: hue wheel, SV square, alpha slider, hex input, RGBA inputs.
@@ -22,6 +28,7 @@ export class ColorPicker {
     this._s = s;
     this._v = v;
     this._a = initialColor.a ?? 255;
+    this._harmony = 'none';
 
     this._build(container);
   }
@@ -79,6 +86,28 @@ export class ColorPicker {
     // Alpha slider
     this._alphaCanvas = this._makeCanvas(SIZE, ALPHA_H);
     root.appendChild(this._alphaCanvas);
+
+    // Harmony selector
+    const harmonyRow = document.createElement('div');
+    harmonyRow.className = 'color-picker-harmony-row';
+    const harmonyLabel = document.createElement('span');
+    harmonyLabel.textContent = 'Harmony';
+    harmonyLabel.style.fontSize = '10px';
+    const harmonySelect = document.createElement('select');
+    harmonySelect.className = 'color-picker-harmony-select';
+    for (const [val, label] of [['none','None'],['complementary','Complementary'],['triadic','Triadic'],['analogous','Analogous']]) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      harmonySelect.appendChild(opt);
+    }
+    harmonySelect.addEventListener('change', () => {
+      this._harmony = harmonySelect.value;
+      this._drawWheel();
+    });
+    harmonyRow.appendChild(harmonyLabel);
+    harmonyRow.appendChild(harmonySelect);
+    root.appendChild(harmonyRow);
 
     // Hex row
     const hexRow = document.createElement('div');
@@ -177,6 +206,25 @@ export class ColorPicker {
       this._wheelBg = ctx.getImageData(0, 0, SIZE, SIZE);
     } else {
       ctx.putImageData(this._wheelBg, 0, 0);
+    }
+
+    // Harmony markers
+    if (this._harmony !== 'none') {
+      const offsets = HARMONY_OFFSETS[this._harmony] || [];
+      const cursorR = (OUTER_R + INNER_R) / 2;
+      for (const offset of offsets) {
+        const hAngle = ((this._h + offset) % 360) * Math.PI / 180;
+        const hx = cx + Math.cos(hAngle) * cursorR;
+        const hy = cy + Math.sin(hAngle) * cursorR;
+        const { r, g, b } = hsvToRgb((this._h + offset) % 360, 1, 1);
+        ctx.beginPath();
+        ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     }
 
     // Hue cursor

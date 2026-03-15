@@ -475,6 +475,25 @@ html, body {
   padding-top: 4px;
 }
 
+.color-picker-harmony-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin: 4px 0 2px;
+}
+
+.color-picker-harmony-select {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+}
+
 .color-picker-hex-row {
   display: flex;
   align-items: center;
