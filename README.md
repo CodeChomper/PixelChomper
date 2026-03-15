@@ -15,6 +15,9 @@ PixelChomper is a fully-featured pixel art tool that runs in your browser. It ai
 - **Export** — PNG, animated GIF, and sprite sheets with JSON metadata
 - **Project files** — Save and load your full project state including all layers, frames, and palette data
 
+## Current Build Live
+### [PixelChomper](https://codechomper.github.io/PixelChomper/)
+
 ## Getting Started
 
 PixelChomper uses ES modules, so it needs to be served over HTTP:
