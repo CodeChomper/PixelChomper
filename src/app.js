@@ -4,12 +4,25 @@ import { CanvasRenderer } from './canvas/CanvasRenderer.js';
 import { CanvasInput } from './canvas/CanvasInput.js';
 import { PencilTool } from './tools/PencilTool.js';
 import { EraserTool } from './tools/EraserTool.js';
+import { LineTool } from './tools/LineTool.js';
+import { RectTool } from './tools/RectTool.js';
+import { EllipseTool } from './tools/EllipseTool.js';
+import { FillTool } from './tools/FillTool.js';
+import { EyedropperTool } from './tools/EyedropperTool.js';
+import { SprayTool } from './tools/SprayTool.js';
+import { CurveTool } from './tools/CurveTool.js';
+import { PolygonTool } from './tools/PolygonTool.js';
+import { SelectRectTool } from './tools/SelectRectTool.js';
+import { SelectLassoTool } from './tools/SelectLassoTool.js';
+import { MagicWandTool } from './tools/MagicWandTool.js';
+import { MoveTool } from './tools/MoveTool.js';
 import { MenuBar } from './ui/MenuBar.js';
 import { Toolbar } from './ui/Toolbar.js';
 import { ToolOptions } from './ui/ToolOptions.js';
 import { StatusBar } from './ui/StatusBar.js';
 import { ColorPanel } from './ui/ColorPanel.js';
 import { Dialog } from './ui/Dialog.js';
+import { HelpDialog } from './ui/HelpDialog.js';
 import { clamp, MIN_ZOOM, MAX_ZOOM } from './core/Constants.js';
 
 /**
@@ -45,6 +58,18 @@ class App {
     // Register tools
     this.toolManager.register(new PencilTool());
     this.toolManager.register(new EraserTool());
+    this.toolManager.register(new LineTool());
+    this.toolManager.register(new RectTool());
+    this.toolManager.register(new EllipseTool());
+    this.toolManager.register(new FillTool());
+    this.toolManager.register(new EyedropperTool());
+    this.toolManager.register(new SprayTool());
+    this.toolManager.register(new CurveTool());
+    this.toolManager.register(new PolygonTool());
+    this.toolManager.register(new SelectRectTool());
+    this.toolManager.register(new SelectLassoTool());
+    this.toolManager.register(new MagicWandTool());
+    this.toolManager.register(new MoveTool());
 
     // UI
     this.menuBar = new MenuBar(this.state, document.getElementById('menubar'));
@@ -69,6 +94,34 @@ class App {
       this.state.setZoom(clamp(z, MIN_ZOOM, MAX_ZOOM));
     });
     this.state.events.on('view:fit', () => this._fitToScreen());
+
+    // Edit menu event handlers
+    this.state.events.on('edit:select-all', () => {
+      if (!this.state.sprite) return;
+      const w = this.state.sprite.width, h = this.state.sprite.height;
+      const mask = new Uint8Array(w * h).fill(1);
+      this.state.setSelection(mask);
+    });
+    this.state.events.on('edit:deselect', () => {
+      this.state.clearSelection();
+    });
+    this.state.events.on('edit:invert-selection', () => {
+      if (!this.state.selection) return;
+      const inv = this.state.selection.map(v => v ? 0 : 1);
+      this.state.setSelection(inv);
+    });
+    this.state.events.on('edit:cut', () => {
+      this.canvasInput._cutSelection();
+    });
+    this.state.events.on('edit:copy', () => {
+      this.canvasInput._copySelection();
+    });
+    this.state.events.on('edit:paste', () => {
+      this.canvasInput._pasteClipboard();
+    });
+
+    // Help
+    this.state.events.on('help:shortcuts', () => HelpDialog.show());
 
     // Show new sprite dialog on launch
     this._showNewSpriteDialog();

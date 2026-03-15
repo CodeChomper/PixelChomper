@@ -1,6 +1,18 @@
 export const TOOLS = {
   PENCIL: 'pencil',
   ERASER: 'eraser',
+  LINE: 'line',
+  RECT: 'rect',
+  ELLIPSE: 'ellipse',
+  FILL: 'fill',
+  EYEDROPPER: 'eyedropper',
+  SPRAY: 'spray',
+  CURVE: 'curve',
+  POLYGON: 'polygon',
+  SELECT_RECT: 'select_rect',
+  SELECT_LASSO: 'select_lasso',
+  MAGIC_WAND: 'magic_wand',
+  MOVE: 'move',
 };
 
 export const BRUSH_SHAPES = {
@@ -20,9 +32,22 @@ export const MAX_BRUSH_SIZE = 64;
 
 export const CHECKER_SIZE = 8;
 
+// Key bindings: map key string (with optional "shift+" prefix) to tool id
 export const KEY_BINDINGS = {
   'b': TOOLS.PENCIL,
   'e': TOOLS.ERASER,
+  'l': TOOLS.LINE,
+  'u': TOOLS.RECT,
+  'shift+u': TOOLS.ELLIPSE,
+  'g': TOOLS.FILL,
+  'i': TOOLS.EYEDROPPER,
+  'shift+b': TOOLS.SPRAY,
+  'shift+l': TOOLS.CURVE,
+  'shift+d': TOOLS.POLYGON,
+  'm': TOOLS.SELECT_RECT,
+  'q': TOOLS.SELECT_LASSO,
+  'w': TOOLS.MAGIC_WAND,
+  'v': TOOLS.MOVE,
 };
 
 export function colorToCSS(c) {

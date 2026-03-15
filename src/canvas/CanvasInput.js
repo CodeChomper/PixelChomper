@@ -15,6 +15,7 @@ export class CanvasInput {
     this._panStart = null;
 
     this._bindEvents();
+    this.state.events.on('tool:changed', () => this._updateCursor());
   }
 
   _bindEvents() {
@@ -28,11 +29,22 @@ export class CanvasInput {
     this.container.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
     this.container.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Hide native cursor — we draw our own brush cursor on the canvas
-    this.container.style.cursor = 'none';
+    this._updateCursor();
 
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
     document.addEventListener('keyup', (e) => this._onKeyUp(e));
+  }
+
+  _updateCursor() {
+    if (this.state.isPanning) return;
+    const brushTools = ['pencil', 'eraser', 'spray'];
+    if (brushTools.includes(this.state.activeTool)) {
+      this.container.style.cursor = 'none';
+    } else if (this.state.activeTool === 'move') {
+      this.container.style.cursor = 'move';
+    } else {
+      this.container.style.cursor = 'crosshair';
+    }
   }
 
   _spriteCoords(e) {
@@ -82,7 +94,11 @@ export class CanvasInput {
     if (this.state.isPanning) {
       this.state.isPanning = false;
       this._panStart = null;
-      this.container.style.cursor = this._spaceHeld ? 'grab' : 'none';
+      if (this._spaceHeld) {
+        this.container.style.cursor = 'grab';
+      } else {
+        this._updateCursor();
+      }
       return;
     }
 
@@ -133,14 +149,71 @@ export class CanvasInput {
       return;
     }
 
-    // Swap colors
-    if (e.key === 'x' || e.key === 'X') {
+    // Escape: cancel selection and active multi-click tools
+    if (e.key === 'Escape') {
+      this.state.clearSelection();
+      this.state.setPreviewPixels(null);
+      // Cancel multi-click tools
+      const tool = this.toolManager.getActiveTool();
+      if (tool && tool.cancel) tool.cancel(this.state);
+      return;
+    }
+
+    // Enter: commit polygon/curve
+    if (e.key === 'Enter') {
+      const tool = this.toolManager.getActiveTool();
+      if (tool && tool.commit) tool.commit(this.state);
+      return;
+    }
+
+    // Selection shortcuts (require sprite)
+    if (this.state.sprite && e.ctrlKey) {
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        const w = this.state.sprite.width, h = this.state.sprite.height;
+        const mask = new Uint8Array(w * h).fill(1);
+        this.state.setSelection(mask);
+        return;
+      }
+      if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        this.state.clearSelection();
+        return;
+      }
+      if ((e.key === 'i' || e.key === 'I') && e.shiftKey) {
+        e.preventDefault();
+        if (this.state.selection) {
+          const inv = this.state.selection.map(v => v ? 0 : 1);
+          this.state.setSelection(inv);
+        }
+        return;
+      }
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault();
+        this._cutSelection();
+        return;
+      }
+      if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        this._copySelection();
+        return;
+      }
+      if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        this._pasteClipboard();
+        return;
+      }
+    }
+
+    // Swap colors (only when not using ctrl)
+    if (!e.ctrlKey && (e.key === 'x' || e.key === 'X')) {
       this.state.swapColors();
       return;
     }
 
     // Tool shortcuts
-    const toolId = KEY_BINDINGS[e.key.toLowerCase()];
+    const keyStr = e.shiftKey ? `shift+${e.key.toLowerCase()}` : e.key.toLowerCase();
+    const toolId = KEY_BINDINGS[keyStr];
     if (toolId) {
       this.state.setTool(toolId);
       return;
@@ -154,5 +227,44 @@ export class CanvasInput {
         this.container.style.cursor = 'none';
       }
     }
+  }
+
+  _cutSelection() {
+    this._copySelection();
+    if (!this.state.selection || !this.state.sprite) return;
+    const mask = this.state.selection;
+    const w = this.state.sprite.width;
+    const transparent = { r: 0, g: 0, b: 0, a: 0 };
+    const pixels = [];
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) {
+        const x = i % w, y = Math.floor(i / w);
+        pixels.push({ x, y, color: transparent });
+      }
+    }
+    this.state.sprite.setPixels(pixels);
+    this.state.events.emit('sprite:modified');
+  }
+
+  _copySelection() {
+    if (!this.state.selection || !this.state.sprite) return;
+    const mask = this.state.selection;
+    const w = this.state.sprite.width;
+    const pixels = [];
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) {
+        const x = i % w, y = Math.floor(i / w);
+        const color = this.state.sprite.getPixel(x, y);
+        if (color) pixels.push({ x, y, color });
+      }
+    }
+    this.state.clipboard = { pixels, width: w, height: this.state.sprite.height };
+  }
+
+  _pasteClipboard() {
+    if (!this.state.clipboard || !this.state.sprite) return;
+    const { pixels } = this.state.clipboard;
+    this.state.sprite.setPixels(pixels);
+    this.state.events.emit('sprite:modified');
   }
 }

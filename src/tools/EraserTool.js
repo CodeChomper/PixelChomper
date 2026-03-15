@@ -42,7 +42,6 @@ export class EraserTool extends Tool {
       }
     }
 
-    sprite.setPixels(pixels);
-    state.events.emit('sprite:modified');
+    state.commitPixels(pixels);
   }
 }
