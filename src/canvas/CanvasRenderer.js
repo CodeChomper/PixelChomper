@@ -61,8 +61,11 @@ export class CanvasRenderer {
     const cx = rect.width / 2;
     const cy = rect.height / 2;
     const zoom = this.state.zoom;
-    const sx = (screenX - rect.left - cx - this.state.panX) / zoom;
-    const sy = (screenY - rect.top - cy - this.state.panY) / zoom;
+    const sprite = this.state.sprite;
+    const sw = sprite ? sprite.width : 0;
+    const sh = sprite ? sprite.height : 0;
+    const sx = (screenX - rect.left - cx - this.state.panX) / zoom + sw / 2;
+    const sy = (screenY - rect.top - cy - this.state.panY) / zoom + sh / 2;
     return { x: Math.floor(sx), y: Math.floor(sy) };
   }
 
