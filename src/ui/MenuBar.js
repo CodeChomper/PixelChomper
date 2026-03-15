@@ -11,13 +11,24 @@ export class MenuBar {
       'File': [
         { label: 'New Sprite...', action: 'file:new', shortcut: 'Ctrl+N' },
       ],
-      'Edit': [],
+      'Edit': [
+        { label: 'Select All', action: 'edit:select-all', shortcut: 'Ctrl+A' },
+        { label: 'Deselect', action: 'edit:deselect', shortcut: 'Ctrl+D' },
+        { label: 'Invert Selection', action: 'edit:invert-selection', shortcut: 'Ctrl+Shift+I' },
+        { type: 'separator' },
+        { label: 'Cut', action: 'edit:cut', shortcut: 'Ctrl+X' },
+        { label: 'Copy', action: 'edit:copy', shortcut: 'Ctrl+C' },
+        { label: 'Paste', action: 'edit:paste', shortcut: 'Ctrl+V' },
+      ],
       'View': [
         { label: 'Toggle Grid', action: 'view:toggle-grid', shortcut: 'Ctrl+G' },
         { type: 'separator' },
         { label: 'Zoom In', action: 'view:zoom-in', shortcut: '+' },
         { label: 'Zoom Out', action: 'view:zoom-out', shortcut: '-' },
         { label: 'Fit to Screen', action: 'view:fit', shortcut: 'Ctrl+0' },
+      ],
+      'Help': [
+        { label: 'Keyboard Shortcuts...', action: 'help:shortcuts', shortcut: 'F1' },
       ],
     };
 
@@ -38,11 +49,15 @@ export class MenuBar {
     this.container.appendChild(title);
 
     for (const [menuName, items] of Object.entries(this._menus)) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'menu-wrapper';
+      this.container.appendChild(wrapper);
+
       const menuItem = document.createElement('span');
       menuItem.className = 'menu-item';
       menuItem.textContent = menuName;
       menuItem.dataset.menu = menuName;
-      this.container.appendChild(menuItem);
+      wrapper.appendChild(menuItem);
 
       const dropdown = document.createElement('div');
       dropdown.className = 'menu-dropdown';
@@ -65,7 +80,7 @@ export class MenuBar {
         dropdown.appendChild(el);
       }
 
-      this.container.appendChild(dropdown);
+      wrapper.appendChild(dropdown);
 
       menuItem.addEventListener('click', () => {
         if (this._openMenu === menuName) {
@@ -106,6 +121,10 @@ export class MenuBar {
       if (e.ctrlKey && e.key === 'g') {
         e.preventDefault();
         this.state.events.emit('view:toggle-grid');
+      }
+      if (e.key === 'F1') {
+        e.preventDefault();
+        this.state.events.emit('help:shortcuts');
       }
     });
   }

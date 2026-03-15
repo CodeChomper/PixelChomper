@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { bresenhamLine, stampBrush } from '../canvas/PixelUtils.js';
+import { bresenhamLine, stampBrush, pixelPerfectFilter } from '../canvas/PixelUtils.js';
 
 export class PencilTool extends Tool {
   constructor() {
@@ -28,11 +28,12 @@ export class PencilTool extends Tool {
     const sprite = state.sprite;
     if (!sprite) return;
 
-    const points = bresenhamLine(from.x, from.y, to.x, to.y);
+    const rawLine = bresenhamLine(from.x, from.y, to.x, to.y);
+    const line = state.pixelPerfect ? pixelPerfectFilter(rawLine) : rawLine;
     const pixels = [];
     const seen = new Set();
 
-    for (const p of points) {
+    for (const p of line) {
       const stamps = stampBrush(p.x, p.y, color, state.brushSize, state.brushShape);
       for (const s of stamps) {
         const key = `${s.x},${s.y}`;
@@ -42,7 +43,6 @@ export class PencilTool extends Tool {
       }
     }
 
-    sprite.setPixels(pixels);
-    state.events.emit('sprite:modified');
+    state.commitPixels(pixels);
   }
 }

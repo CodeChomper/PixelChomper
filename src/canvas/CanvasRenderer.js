@@ -20,6 +20,10 @@ export class CanvasRenderer {
     // Cursor position in sprite coords (null when cursor is outside canvas)
     this._cursorPos = null;
 
+    // Marching ants animation
+    this._marchingOffset = 0;
+    this._rafId = null;
+
     this._resizeObserver = new ResizeObserver(() => this._resize());
     this._resizeObserver.observe(this.container);
     this._resize();
@@ -34,6 +38,21 @@ export class CanvasRenderer {
     this.state.events.on('cursor:left', () => { this._cursorPos = null; this.render(); });
     this.state.events.on('brush:size-changed', () => this.render());
     this.state.events.on('brush:shape-changed', () => this.render());
+    this.state.events.on('preview:changed', () => this.render());
+    this.state.events.on('selection:changed', () => this.render());
+
+    // Start marching ants animation loop
+    this._animateSelection();
+  }
+
+  _animateSelection() {
+    this._rafId = requestAnimationFrame(() => {
+      if (this.state.selection) {
+        this._marchingOffset = (this._marchingOffset + 0.3) % 8;
+        this.render();
+      }
+      this._animateSelection();
+    });
   }
 
   _resize() {
@@ -131,10 +150,86 @@ export class CanvasRenderer {
     ctx.lineWidth = 1;
     ctx.strokeRect(ox - 0.5, oy - 0.5, sw + 1, sh + 1);
 
-    // Draw brush cursor
-    if (this._cursorPos && !this.state.isPanning) {
-      this._drawBrushCursor(ctx, ox, oy, zoom);
+    // Draw preview overlay (shape tools)
+    if (this.state.previewPixels && this.state.previewPixels.length > 0) {
+      this._drawPreviewPixels(ctx, ox, oy, zoom);
     }
+
+    // Draw selection marching ants
+    if (this.state.selection) {
+      this._drawSelection(ctx, ox, oy, zoom);
+    }
+
+    // Draw brush cursor or pixel highlight depending on tool
+    const brushTools = ['pencil', 'eraser', 'spray'];
+    if (this._cursorPos && !this.state.isPanning) {
+      if (brushTools.includes(this.state.activeTool)) {
+        this._drawBrushCursor(ctx, ox, oy, zoom);
+      } else {
+        this._drawPixelHighlight(ctx, ox, oy, zoom);
+      }
+    }
+  }
+
+  _drawPreviewPixels(ctx, ox, oy, zoom) {
+    const pixels = this.state.previewPixels;
+
+    // Group by color for efficiency
+    const byColor = new Map();
+    for (const p of pixels) {
+      const key = `${p.color.r},${p.color.g},${p.color.b},${p.color.a}`;
+      if (!byColor.has(key)) byColor.set(key, []);
+      byColor.get(key).push(p);
+    }
+    for (const [key, group] of byColor) {
+      const [r, g, b, a] = key.split(',').map(Number);
+      ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`;
+      for (const p of group) {
+        ctx.fillRect(ox + p.x * zoom, oy + p.y * zoom, zoom, zoom);
+      }
+    }
+  }
+
+  _drawSelection(ctx, ox, oy, zoom) {
+    const mask = this.state.selection;
+    const sprite = this.state.sprite;
+    if (!mask || !sprite) return;
+    const w = sprite.width, h = sprite.height;
+
+    // Draw marching ants: find edges between selected and unselected
+    ctx.setLineDash([4, 4]);
+    ctx.lineDashOffset = -this._marchingOffset;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!mask[y * w + x]) continue;
+        const sx = ox + x * zoom;
+        const sy = oy + y * zoom;
+        // top edge
+        if (y === 0 || !mask[(y-1)*w+x]) { ctx.moveTo(sx, sy+0.5); ctx.lineTo(sx+zoom, sy+0.5); }
+        // bottom edge
+        if (y === h-1 || !mask[(y+1)*w+x]) { ctx.moveTo(sx, sy+zoom-0.5); ctx.lineTo(sx+zoom, sy+zoom-0.5); }
+        // left edge
+        if (x === 0 || !mask[y*w+(x-1)]) { ctx.moveTo(sx+0.5, sy); ctx.lineTo(sx+0.5, sy+zoom); }
+        // right edge
+        if (x === w-1 || !mask[y*w+(x+1)]) { ctx.moveTo(sx+zoom-0.5, sy); ctx.lineTo(sx+zoom-0.5, sy+zoom); }
+      }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+  }
+
+  _drawPixelHighlight(ctx, ox, oy, zoom) {
+    const pos = this._cursorPos;
+    const sx = ox + pos.x * zoom;
+    const sy = oy + pos.y * zoom;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx + 0.5, sy + 0.5, zoom - 1, zoom - 1);
   }
 
   _drawBrushCursor(ctx, ox, oy, zoom) {
