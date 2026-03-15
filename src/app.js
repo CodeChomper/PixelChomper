@@ -74,13 +74,28 @@ class App {
     this._showNewSpriteDialog();
   }
 
+  _loadLastSpriteSettings() {
+    try {
+      const saved = localStorage.getItem('pixelchomper:new-sprite');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return { width: 32, height: 32, bg: 'white' };
+  }
+
+  _saveLastSpriteSettings(settings) {
+    try {
+      localStorage.setItem('pixelchomper:new-sprite', JSON.stringify(settings));
+    } catch { /* ignore */ }
+  }
+
   async _showNewSpriteDialog() {
+    const last = this._loadLastSpriteSettings();
     const result = await Dialog.show({
       title: 'New Sprite',
       fields: [
-        { label: 'Width', name: 'width', type: 'number', value: 32, min: 1, max: 1024 },
-        { label: 'Height', name: 'height', type: 'number', value: 32, min: 1, max: 1024 },
-        { label: 'Background', name: 'bg', type: 'select', value: 'white', options: [
+        { label: 'Width', name: 'width', type: 'number', value: last.width, min: 1, max: 1024 },
+        { label: 'Height', name: 'height', type: 'number', value: last.height, min: 1, max: 1024 },
+        { label: 'Background', name: 'bg', type: 'select', value: last.bg, options: [
           { label: 'White', value: 'white' },
           { label: 'Black', value: 'black' },
           { label: 'Transparent', value: 'transparent' },
@@ -97,6 +112,7 @@ class App {
       return;
     }
 
+    this._saveLastSpriteSettings({ width: result.width, height: result.height, bg: result.bg });
     this._createSprite(result.width, result.height, result.bg);
   }
 
