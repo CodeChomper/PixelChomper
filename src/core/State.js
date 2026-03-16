@@ -1,5 +1,6 @@
 import { EventBus } from './EventBus.js';
 import { TOOLS, BRUSH_SHAPES, DEFAULT_FG, DEFAULT_BG, DEFAULT_ZOOM, DEFAULT_BRUSH_SIZE } from './Constants.js';
+import { History } from './History.js';
 
 /**
  * Central application state. Single source of truth.
@@ -40,6 +41,9 @@ export class State {
     this.activePalette = null;      // Palette instance or null
     this.recentColors = [];         // [{r,g,b,a}] most recent first
     this._maxRecentColors = 8;
+
+    // Stage 5 state
+    this.history = new History(50);
   }
 
   setTool(tool) {
@@ -90,7 +94,57 @@ export class State {
   setSprite(sprite) {
     this.sprite = sprite;
     this.activeLayerIndex = 0;
+    this.history.clear();
     this.events.emit('sprite:loaded', sprite);
+  }
+
+  /**
+   * Snapshot the active layer's current pixels onto the undo stack.
+   * Call this BEFORE a destructive operation (tool stroke, cut, paste).
+   */
+  pushHistorySnapshot() {
+    const layer = this.activeLayer;
+    if (!layer || !this.sprite) return;
+    const imageData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    this.history.push(this.activeLayerIndex, imageData, this.selection);
+  }
+
+  /** Undo the last pixel modification. */
+  undo() {
+    if (!this.sprite || !this.history.canUndo()) return;
+    const layer = this.activeLayer;
+    if (!layer) return;
+    const currentData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    const snapshot = this.history.undo(this.activeLayerIndex, currentData, this.selection);
+    if (!snapshot) return;
+    const targetLayer = this.sprite.layers[snapshot.layerIndex];
+    if (targetLayer) {
+      targetLayer.ctx.putImageData(snapshot.imageData, 0, 0);
+      this.activeLayerIndex = snapshot.layerIndex;
+      this.events.emit('layer:selected', this.activeLayerIndex);
+    }
+    this.selection = snapshot.selectionMask;
+    this.events.emit('selection:changed', this.selection);
+    this.events.emit('sprite:modified');
+  }
+
+  /** Redo the last undone modification. */
+  redo() {
+    if (!this.sprite || !this.history.canRedo()) return;
+    const layer = this.activeLayer;
+    if (!layer) return;
+    const currentData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    const snapshot = this.history.redo(this.activeLayerIndex, currentData, this.selection);
+    if (!snapshot) return;
+    const targetLayer = this.sprite.layers[snapshot.layerIndex];
+    if (targetLayer) {
+      targetLayer.ctx.putImageData(snapshot.imageData, 0, 0);
+      this.activeLayerIndex = snapshot.layerIndex;
+      this.events.emit('layer:selected', this.activeLayerIndex);
+    }
+    this.selection = snapshot.selectionMask;
+    this.events.emit('selection:changed', this.selection);
+    this.events.emit('sprite:modified');
   }
 
   /** Get the currently active layer, or null. */

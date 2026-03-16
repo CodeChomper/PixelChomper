@@ -10,8 +10,19 @@ export class MenuBar {
     this._menus = {
       'File': [
         { label: 'New Sprite...', action: 'file:new', shortcut: 'Ctrl+N' },
+        { label: 'Open Project...', action: 'file:open', shortcut: 'Ctrl+O' },
+        { label: 'Save Project', action: 'file:save', shortcut: 'Ctrl+S' },
+        { type: 'separator' },
+        { label: 'Export PNG', action: 'file:export-png' },
+        { label: 'Export GIF', action: 'file:export-gif' },
+        { label: 'Export Sprite Sheet...', action: 'file:export-spritesheet' },
+        { type: 'separator' },
+        { label: 'Import Image...', action: 'file:import-image' },
       ],
       'Edit': [
+        { label: 'Undo', action: 'edit:undo', shortcut: 'Ctrl+Z' },
+        { label: 'Redo', action: 'edit:redo', shortcut: 'Ctrl+Shift+Z' },
+        { type: 'separator' },
         { label: 'Select All', action: 'edit:select-all', shortcut: 'Ctrl+A' },
         { label: 'Deselect', action: 'edit:deselect', shortcut: 'Ctrl+D' },
         { label: 'Invert Selection', action: 'edit:invert-selection', shortcut: 'Ctrl+Shift+I' },
@@ -133,6 +144,14 @@ export class MenuBar {
       if (e.key === 'F1') {
         e.preventDefault();
         this.state.events.emit('help:shortcuts');
+      }
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        this.state.events.emit('file:save');
+      }
+      if (e.ctrlKey && e.key === 'o') {
+        e.preventDefault();
+        this.state.events.emit('file:open');
       }
     });
   }

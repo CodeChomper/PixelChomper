@@ -25,6 +25,11 @@ import { LayerPanel } from './ui/LayerPanel.js';
 import { Dialog } from './ui/Dialog.js';
 import { HelpDialog } from './ui/HelpDialog.js';
 import { clamp, MIN_ZOOM, MAX_ZOOM } from './core/Constants.js';
+import { ExportPNG } from './io/ExportPNG.js';
+import { ExportGIF } from './io/ExportGIF.js';
+import { ExportSpriteSheet } from './io/ExportSpriteSheet.js';
+import { ImportSpriteSheet } from './io/ImportSpriteSheet.js';
+import { ProjectFile } from './io/ProjectFile.js';
 
 /**
  * Tool manager — registers tools, returns the active one.
@@ -86,6 +91,16 @@ class App {
 
     // Menu event handlers
     this.state.events.on('file:new', () => this._showNewSpriteDialog());
+    this.state.events.on('file:open', () => this._loadProject());
+    this.state.events.on('file:save', () => ProjectFile.save(this.state));
+    this.state.events.on('file:export-png', () => ExportPNG.download(this.state.sprite));
+    this.state.events.on('file:export-gif', () => ExportGIF.download(this.state.sprite));
+    this.state.events.on('file:export-spritesheet', () => this._showExportSpritesheetDialog());
+    this.state.events.on('file:import-image', () => this._importImage());
+
+    // Edit: undo/redo
+    this.state.events.on('edit:undo', () => this.state.undo());
+    this.state.events.on('edit:redo', () => this.state.redo());
     this.state.events.on('view:toggle-grid', () => this.state.toggleGrid());
     this.state.events.on('view:zoom-in', () => {
       const z = this.state.zoom < 4 ? this.state.zoom + 1 : this.state.zoom * 2;
@@ -200,6 +215,37 @@ class App {
     zoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM);
     this.state.setPan(0, 0);
     this.state.setZoom(zoom);
+  }
+
+  async _loadProject() {
+    const result = await ProjectFile.load();
+    if (!result) return;
+    this.state.setSprite(result.sprite);
+    this.state.setActiveLayer(result.activeLayerIndex);
+    this._fitToScreen();
+  }
+
+  async _showExportSpritesheetDialog() {
+    if (!this.state.sprite) return;
+    const { width, height } = this.state.sprite;
+    const result = await Dialog.show({
+      title: 'Export Sprite Sheet',
+      fields: [
+        { label: 'Frame Width',  name: 'frameW', type: 'number', value: width,  min: 1, max: 4096 },
+        { label: 'Frame Height', name: 'frameH', type: 'number', value: height, min: 1, max: 4096 },
+        { label: 'Columns',      name: 'cols',   type: 'number', value: 1,       min: 1, max: 64  },
+      ],
+      confirmText: 'Export',
+    });
+    if (!result) return;
+    ExportSpriteSheet.download(this.state.sprite, result.frameW, result.frameH, result.cols);
+  }
+
+  async _importImage() {
+    const sprite = await ImportSpriteSheet.load();
+    if (!sprite) return;
+    this.state.setSprite(sprite);
+    this._fitToScreen();
   }
 }
 

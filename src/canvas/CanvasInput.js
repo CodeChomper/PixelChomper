@@ -66,6 +66,13 @@ export class CanvasInput {
 
     const pos = this._spriteCoords(e);
     this.state.isDrawing = true;
+
+    // Push undo snapshot before pixel-modifying tools
+    const NON_MODIFYING = new Set(['eyedropper', 'select_rect', 'select_lasso', 'magic_wand']);
+    if (!NON_MODIFYING.has(this.state.activeTool)) {
+      this.state.pushHistorySnapshot();
+    }
+
     const tool = this.toolManager.getActiveTool();
     if (tool) tool.onPointerDown(pos, e, this.state);
   }
@@ -166,6 +173,17 @@ export class CanvasInput {
       return;
     }
 
+    // Undo / Redo
+    if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        this.state.redo();
+      } else {
+        this.state.undo();
+      }
+      return;
+    }
+
     // Selection shortcuts (require sprite)
     if (this.state.sprite && e.ctrlKey) {
       if (e.key === 'a' || e.key === 'A') {
@@ -233,6 +251,7 @@ export class CanvasInput {
     this._copySelection();
     const layer = this.state.activeLayer;
     if (!this.state.selection || !layer) return;
+    this.state.pushHistorySnapshot();
     const mask = this.state.selection;
     const w = this.state.sprite.width;
     const transparent = { r: 0, g: 0, b: 0, a: 0 };
@@ -266,6 +285,7 @@ export class CanvasInput {
   _pasteClipboard() {
     const layer = this.state.activeLayer;
     if (!this.state.clipboard || !layer) return;
+    this.state.pushHistorySnapshot();
     const { pixels } = this.state.clipboard;
     layer.setPixels(pixels);
     this.state.events.emit('sprite:modified');
