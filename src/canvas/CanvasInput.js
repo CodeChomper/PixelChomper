@@ -166,10 +166,33 @@ export class CanvasInput {
       return;
     }
 
-    // Enter: commit polygon/curve
+    // Enter: play/pause OR commit polygon/curve
     if (e.key === 'Enter') {
       const tool = this.toolManager.getActiveTool();
-      if (tool && tool.commit) tool.commit(this.state);
+      if (tool && tool.commit) {
+        tool.commit(this.state);
+      } else {
+        this.state.togglePlayback();
+      }
+      return;
+    }
+
+    // Frame navigation: left/right arrows
+    if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      this.state.setActiveFrame(this.state.activeFrameIndex - 1);
+      return;
+    }
+    if (e.key === 'ArrowRight' && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      this.state.setActiveFrame(this.state.activeFrameIndex + 1);
+      return;
+    }
+
+    // Alt+N: add frame
+    if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      this.state.addFrame();
       return;
     }
 
@@ -249,8 +272,8 @@ export class CanvasInput {
 
   _cutSelection() {
     this._copySelection();
-    const layer = this.state.activeLayer;
-    if (!this.state.selection || !layer) return;
+    const cel = this.state.activeCel;
+    if (!this.state.selection || !cel) return;
     this.state.pushHistorySnapshot();
     const mask = this.state.selection;
     const w = this.state.sprite.width;
@@ -262,20 +285,20 @@ export class CanvasInput {
         pixels.push({ x, y, color: transparent });
       }
     }
-    layer.setPixels(pixels);
+    cel.setPixels(pixels);
     this.state.events.emit('sprite:modified');
   }
 
   _copySelection() {
-    const layer = this.state.activeLayer;
-    if (!this.state.selection || !layer) return;
+    const cel = this.state.activeCel;
+    if (!this.state.selection || !cel) return;
     const mask = this.state.selection;
     const w = this.state.sprite.width;
     const pixels = [];
     for (let i = 0; i < mask.length; i++) {
       if (mask[i]) {
         const x = i % w, y = Math.floor(i / w);
-        const color = layer.getPixel(x, y);
+        const color = cel.getPixel(x, y);
         if (color) pixels.push({ x, y, color });
       }
     }
@@ -283,11 +306,11 @@ export class CanvasInput {
   }
 
   _pasteClipboard() {
-    const layer = this.state.activeLayer;
-    if (!this.state.clipboard || !layer) return;
+    const cel = this.state.activeCel;
+    if (!this.state.clipboard || !cel) return;
     this.state.pushHistorySnapshot();
     const { pixels } = this.state.clipboard;
-    layer.setPixels(pixels);
+    cel.setPixels(pixels);
     this.state.events.emit('sprite:modified');
   }
 }

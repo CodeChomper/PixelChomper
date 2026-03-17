@@ -46,6 +46,16 @@ export class MenuBar {
         { label: 'Merge Down', action: 'layer:merge-down' },
         { label: 'Flatten', action: 'layer:flatten' },
       ],
+      'Frame': [
+        { label: 'Add Frame', action: 'frame:add', shortcut: 'Alt+N' },
+        { label: 'Duplicate Frame', action: 'frame:duplicate' },
+        { label: 'Remove Frame', action: 'frame:remove' },
+        { type: 'separator' },
+        { label: 'Previous Frame', action: 'frame:prev', shortcut: '←' },
+        { label: 'Next Frame', action: 'frame:next', shortcut: '→' },
+        { type: 'separator' },
+        { label: 'Play / Pause', action: 'frame:play', shortcut: 'Enter' },
+      ],
       'Help': [
         { label: 'Keyboard Shortcuts...', action: 'help:shortcuts', shortcut: 'F1' },
       ],

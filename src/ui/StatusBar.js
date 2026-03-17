@@ -1,5 +1,5 @@
 /**
- * Bottom status bar — shows cursor position, canvas size, zoom level, tool name.
+ * Bottom status bar — shows cursor position, canvas size, zoom level, tool name, frame number.
  */
 export class StatusBar {
   constructor(state, containerEl) {
@@ -10,22 +10,26 @@ export class StatusBar {
     this._sizeEl = null;
     this._zoomEl = null;
     this._toolEl = null;
+    this._frameEl = null;
 
     this._build();
 
     this.state.events.on('cursor:moved', (pos) => this._updatePos(pos));
     this.state.events.on('view:zoom-changed', () => this._updateZoom());
     this.state.events.on('tool:changed', () => this._updateTool());
-    this.state.events.on('sprite:loaded', () => this._updateSize());
+    this.state.events.on('sprite:loaded', () => { this._updateSize(); this._updateFrame(); });
+    this.state.events.on('frame:changed', () => this._updateFrame());
+    this.state.events.on('frame:added', () => this._updateFrame());
+    this.state.events.on('frame:removed', () => this._updateFrame());
   }
 
   _build() {
     this.container.innerHTML = '';
-
     this._posEl = this._addItem('Pos: --,--');
     this._sizeEl = this._addItem('Size: --x--');
     this._zoomEl = this._addItem(`Zoom: ${this.state.zoom}x`);
     this._toolEl = this._addItem(`Tool: ${this.state.activeTool}`);
+    this._frameEl = this._addItem('Frame: 1/1');
   }
 
   _addItem(text) {
@@ -54,5 +58,13 @@ export class StatusBar {
 
   _updateTool() {
     this._toolEl.textContent = `Tool: ${this.state.activeTool}`;
+  }
+
+  _updateFrame() {
+    const sprite = this.state.sprite;
+    if (!sprite) { this._frameEl.textContent = 'Frame: 1/1'; return; }
+    const cur = this.state.activeFrameIndex + 1;
+    const total = sprite.frames.length;
+    this._frameEl.textContent = `Frame: ${cur}/${total}`;
   }
 }

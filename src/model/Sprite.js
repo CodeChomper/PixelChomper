@@ -1,62 +1,117 @@
 import { Layer } from './Layer.js';
+import { Frame } from './Frame.js';
+import { Cel } from './Cel.js';
 
 /**
- * Sprite model — manages dimensions and an ordered array of layers.
- * Provides backward-compatible getPixel/setPixel/setPixels that delegate
- * to a specified layer (defaults to index 0 for legacy callers).
+ * Sprite — holds layers, frames, and a 2D array of cels (cels[layerIndex][frameIndex]).
+ * Layers store visual metadata; Cels store pixel data.
  */
 export class Sprite {
   constructor(width, height, bgColor = null) {
     this.width = width;
     this.height = height;
-
-    /** @type {Layer[]} bottom-to-top order */
+    /** @type {import('./Layer.js').Layer[]} */
     this.layers = [];
+    /** @type {import('./Frame.js').Frame[]} */
+    this.frames = [];
+    /** @type {import('./Cel.js').Cel[][]} cels[layerIndex][frameIndex] */
+    this.cels = [];
+    /** @type {{name:string,color:string,from:number,to:number}[]} */
+    this.tags = [];
 
-    // Create the initial background layer
-    const bg = new Layer(width, height, 'Background', bgColor);
-    this.layers.push(bg);
+    // Initial state: one background layer, one frame, one cel
+    this.layers.push(new Layer('Background'));
+    this.frames.push(new Frame(0));
+    const cel = new Cel(width, height);
+    if (bgColor) {
+      cel.ctx.fillStyle = `rgba(${bgColor.r},${bgColor.g},${bgColor.b},${(bgColor.a ?? 255) / 255})`;
+      cel.ctx.fillRect(0, 0, width, height);
+    }
+    this.cels = [[cel]];
   }
 
-  /** Get pixel from a specific layer (or composited result if layerIndex omitted). */
-  getPixel(x, y, layerIndex = 0) {
-    const layer = this.layers[layerIndex];
-    return layer ? layer.getPixel(x, y) : null;
+  getCel(layerIndex, frameIndex) {
+    return this.cels[layerIndex]?.[frameIndex] || null;
   }
 
-  /** Set pixel on a specific layer. */
-  setPixel(x, y, color, layerIndex = 0) {
-    const layer = this.layers[layerIndex];
-    if (layer) layer.setPixel(x, y, color);
+  // ── Frame operations ──────────────────────────────────────────────────────
+
+  /** Add a new blank frame at the given index (or end). Returns the new frame's index. */
+  addFrame(atIndex = null) {
+    const fi = atIndex !== null ? atIndex : this.frames.length;
+    const frame = new Frame(fi);
+    this.frames.splice(fi, 0, frame);
+    _reindexFrames(this.frames);
+    for (let li = 0; li < this.layers.length; li++) {
+      this.cels[li].splice(fi, 0, new Cel(this.width, this.height));
+    }
+    return fi;
   }
 
-  /** Set pixels on a specific layer. */
-  setPixels(pixels, layerIndex = 0) {
-    const layer = this.layers[layerIndex];
-    if (layer) layer.setPixels(pixels);
+  /** Duplicate the frame at fi. Returns the new frame index. */
+  duplicateFrame(fi) {
+    const newFi = fi + 1;
+    const frame = new Frame(newFi);
+    frame.duration = this.frames[fi].duration;
+    this.frames.splice(newFi, 0, frame);
+    _reindexFrames(this.frames);
+    for (let li = 0; li < this.layers.length; li++) {
+      this.cels[li].splice(newFi, 0, this.cels[li][fi].duplicate());
+    }
+    return newFi;
   }
 
-  /** Add a new transparent layer above the given index. Returns the new layer's index. */
+  /** Remove frame at fi. Returns the index to navigate to next. */
+  removeFrame(fi) {
+    if (this.frames.length <= 1) return 0;
+    this.frames.splice(fi, 1);
+    _reindexFrames(this.frames);
+    for (let li = 0; li < this.layers.length; li++) {
+      this.cels[li].splice(fi, 1);
+    }
+    return Math.min(fi, this.frames.length - 1);
+  }
+
+  /** Move a frame from one index to another. */
+  moveFrame(fromFi, toFi) {
+    if (fromFi === toFi) return;
+    const [frame] = this.frames.splice(fromFi, 1);
+    this.frames.splice(toFi, 0, frame);
+    _reindexFrames(this.frames);
+    for (let li = 0; li < this.layers.length; li++) {
+      const [cel] = this.cels[li].splice(fromFi, 1);
+      this.cels[li].splice(toFi, 0, cel);
+    }
+  }
+
+  // ── Layer operations ──────────────────────────────────────────────────────
+
+  /** Add a new transparent layer above aboveIndex. Returns the new layer index. */
   addLayer(name, aboveIndex = null) {
-    const layer = new Layer(this.width, this.height, name || `Layer ${this.layers.length}`);
+    const layer = new Layer(name || `Layer ${this.layers.length}`);
     const insertAt = aboveIndex !== null ? aboveIndex + 1 : this.layers.length;
     this.layers.splice(insertAt, 0, layer);
+    const celsRow = this.frames.map(() => new Cel(this.width, this.height));
+    this.cels.splice(insertAt, 0, celsRow);
     return insertAt;
   }
 
-  /** Remove a layer by index. Returns the removed layer, or null. */
+  /** Remove a layer by index. Returns the removed layer or null. */
   removeLayer(index) {
-    if (this.layers.length <= 1) return null; // must keep at least 1 layer
+    if (this.layers.length <= 1) return null;
     const [removed] = this.layers.splice(index, 1);
+    this.cels.splice(index, 1);
     return removed;
   }
 
-  /** Duplicate a layer. Returns the new layer's index. */
+  /** Duplicate a layer (all its cels). Returns the new layer index. */
   duplicateLayer(index) {
     const layer = this.layers[index];
     if (!layer) return -1;
     const copy = layer.duplicate();
     this.layers.splice(index + 1, 0, copy);
+    const celsCopy = this.cels[index].map(cel => cel.duplicate());
+    this.cels.splice(index + 1, 0, celsCopy);
     return index + 1;
   }
 
@@ -65,52 +120,72 @@ export class Sprite {
     if (fromIndex === toIndex) return;
     const [layer] = this.layers.splice(fromIndex, 1);
     this.layers.splice(toIndex, 0, layer);
+    const [celsRow] = this.cels.splice(fromIndex, 1);
+    this.cels.splice(toIndex, 0, celsRow);
   }
 
-  /** Merge a layer down into the one below it. Returns the merged layer index. */
+  /** Merge the layer at index down into the one below (across all frames). */
   mergeDown(index) {
     if (index <= 0 || index >= this.layers.length) return -1;
     const upper = this.layers[index];
-    const lower = this.layers[index - 1];
-    // Composite upper onto lower
-    lower.ctx.globalAlpha = upper.opacity / 100;
-    lower.ctx.globalCompositeOperation = upper.blendMode;
-    lower.ctx.drawImage(upper.canvas, 0, 0);
-    lower.ctx.globalAlpha = 1;
-    lower.ctx.globalCompositeOperation = 'source-over';
+    for (let fi = 0; fi < this.frames.length; fi++) {
+      const upperCel = this.cels[index][fi];
+      const lowerCel = this.cels[index - 1][fi];
+      lowerCel.ctx.globalAlpha = upper.opacity / 100;
+      lowerCel.ctx.globalCompositeOperation = upper.blendMode;
+      lowerCel.ctx.drawImage(upperCel.canvas, 0, 0);
+      lowerCel.ctx.globalAlpha = 1;
+      lowerCel.ctx.globalCompositeOperation = 'source-over';
+    }
     this.layers.splice(index, 1);
+    this.cels.splice(index, 1);
     return index - 1;
   }
 
-  /** Flatten all visible layers into a single layer. */
+  /** Flatten all visible layers into a single layer (across all frames). */
   flatten() {
-    const result = new Layer(this.width, this.height, 'Background');
-    for (const layer of this.layers) {
-      if (!layer.visible) continue;
-      result.ctx.globalAlpha = layer.opacity / 100;
-      result.ctx.globalCompositeOperation = layer.blendMode;
-      result.ctx.drawImage(layer.canvas, 0, 0);
+    const newCelsRow = [];
+    for (let fi = 0; fi < this.frames.length; fi++) {
+      const result = new Cel(this.width, this.height);
+      for (let li = 0; li < this.layers.length; li++) {
+        const layer = this.layers[li];
+        if (!layer.visible) continue;
+        result.ctx.globalAlpha = layer.opacity / 100;
+        result.ctx.globalCompositeOperation = layer.blendMode;
+        result.ctx.drawImage(this.cels[li][fi].canvas, 0, 0);
+      }
+      result.ctx.globalAlpha = 1;
+      result.ctx.globalCompositeOperation = 'source-over';
+      newCelsRow.push(result);
     }
-    result.ctx.globalAlpha = 1;
-    result.ctx.globalCompositeOperation = 'source-over';
-    this.layers = [result];
+    this.layers = [new Layer('Background')];
+    this.cels = [newCelsRow];
   }
 
   /**
-   * Composite all visible layers and return the result as a canvas.
-   * Useful for eyedropper sampling the final image.
+   * Composite all visible layers for a given frame and return a canvas element.
+   * @param {number} [frameIndex=0]
    */
-  getComposited() {
+  getComposited(frameIndex = 0) {
     const c = document.createElement('canvas');
     c.width = this.width;
     c.height = this.height;
     const ctx = c.getContext('2d');
-    for (const layer of this.layers) {
+    for (let li = 0; li < this.layers.length; li++) {
+      const layer = this.layers[li];
       if (!layer.visible) continue;
+      const cel = this.cels[li]?.[frameIndex];
+      if (!cel) continue;
       ctx.globalAlpha = layer.opacity / 100;
       ctx.globalCompositeOperation = layer.blendMode;
-      ctx.drawImage(layer.canvas, 0, 0);
+      ctx.drawImage(cel.canvas, 0, 0);
     }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
     return c;
   }
+}
+
+function _reindexFrames(frames) {
+  for (let i = 0; i < frames.length; i++) frames[i].index = i;
 }

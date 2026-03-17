@@ -1,11 +1,14 @@
 /**
  * Save and load .pixelchomper project files.
  * Format: JSON with layer pixel data embedded as base64-encoded PNG data URLs.
+ * Version 2 adds multi-frame support.
  */
 import { Sprite } from '../model/Sprite.js';
 import { Layer } from '../model/Layer.js';
+import { Frame } from '../model/Frame.js';
+import { Cel } from '../model/Cel.js';
 
-const PROJECT_VERSION = 1;
+const PROJECT_VERSION = 2;
 const FILE_EXTENSION = '.pixelchomper';
 
 export class ProjectFile {
@@ -18,21 +21,26 @@ export class ProjectFile {
     if (!state.sprite) return;
     const { sprite } = state;
 
-    const layers = sprite.layers.map((layer) => ({
+    const layers = sprite.layers.map((layer, li) => ({
       name: layer.name,
       visible: layer.visible,
       locked: layer.locked,
       opacity: layer.opacity,
       blendMode: layer.blendMode,
-      data: layer.canvas.toDataURL('image/png'),
+      cels: sprite.cels[li].map(cel => cel.canvas.toDataURL('image/png')),
     }));
+
+    const frames = sprite.frames.map(f => ({ duration: f.duration }));
 
     const project = {
       version: PROJECT_VERSION,
       width: sprite.width,
       height: sprite.height,
       activeLayerIndex: state.activeLayerIndex,
+      activeFrameIndex: state.activeFrameIndex,
       layers,
+      frames,
+      tags: sprite.tags || [],
     };
 
     const blob = new Blob([JSON.stringify(project)], { type: 'application/json' });
@@ -47,8 +55,8 @@ export class ProjectFile {
   }
 
   /**
-   * Open a file picker, parse the chosen file, and return the restored sprite + metadata.
-   * @returns {Promise<{ sprite: Sprite, activeLayerIndex: number }|null>}
+   * Open a file picker, parse the chosen file, and return the restored state.
+   * @returns {Promise<{sprite:Sprite, activeLayerIndex:number, activeFrameIndex:number}|null>}
    */
   static load() {
     return new Promise((resolve) => {
@@ -82,32 +90,73 @@ async function _deserialize(project) {
     throw new Error('Invalid project file format.');
   }
 
-  const sprite = new Sprite(project.width, project.height, null);
+  const w = project.width, h = project.height;
+  const sprite = new Sprite(w, h, null);
   sprite.layers = [];
+  sprite.frames = [];
+  sprite.cels = [];
+  sprite.tags = project.tags || [];
 
+  // Version 1 compatibility: single-frame projects without explicit frames array
+  const frameData = Array.isArray(project.frames) ? project.frames : [{ duration: 100 }];
+
+  // Build frames
+  for (let fi = 0; fi < frameData.length; fi++) {
+    const f = new Frame(fi);
+    f.duration = frameData[fi]?.duration ?? 100;
+    sprite.frames.push(f);
+  }
+
+  // Build layers and cels
   for (const ld of project.layers) {
-    const layer = new Layer(project.width, project.height, ld.name);
+    const layer = new Layer(ld.name);
     layer.visible  = ld.visible  ?? true;
     layer.locked   = ld.locked   ?? false;
     layer.opacity  = ld.opacity  ?? 100;
     layer.blendMode = ld.blendMode ?? 'source-over';
-    if (ld.data) {
-      await _drawDataURL(layer.ctx, ld.data, project.width, project.height);
-    }
     sprite.layers.push(layer);
+
+    const celsRow = [];
+    if (Array.isArray(ld.cels)) {
+      // Version 2: per-frame cels
+      for (let fi = 0; fi < sprite.frames.length; fi++) {
+        const cel = new Cel(w, h);
+        const dataUrl = ld.cels[fi];
+        if (dataUrl) await _drawDataURL(cel.ctx, dataUrl, w, h);
+        celsRow.push(cel);
+      }
+    } else if (ld.data) {
+      // Version 1 compatibility: single cel per layer
+      const cel = new Cel(w, h);
+      await _drawDataURL(cel.ctx, ld.data, w, h);
+      celsRow.push(cel);
+      // Pad to match frame count
+      while (celsRow.length < sprite.frames.length) {
+        celsRow.push(new Cel(w, h));
+      }
+    } else {
+      // Empty cels
+      while (celsRow.length < sprite.frames.length) {
+        celsRow.push(new Cel(w, h));
+      }
+    }
+    sprite.cels.push(celsRow);
   }
 
-  // Ensure at least one layer
+  // Ensure at least one layer and frame
   if (sprite.layers.length === 0) {
-    sprite.layers.push(new Layer(project.width, project.height, 'Background'));
+    sprite.layers.push(new Layer('Background'));
+    sprite.cels.push([new Cel(w, h)]);
+  }
+  if (sprite.frames.length === 0) {
+    sprite.frames.push(new Frame(0));
+    for (const row of sprite.cels) row.push(new Cel(w, h));
   }
 
-  const activeLayerIndex = Math.min(
-    project.activeLayerIndex ?? 0,
-    sprite.layers.length - 1,
-  );
+  const activeLayerIndex = Math.min(project.activeLayerIndex ?? 0, sprite.layers.length - 1);
+  const activeFrameIndex = Math.min(project.activeFrameIndex ?? 0, sprite.frames.length - 1);
 
-  return { sprite, activeLayerIndex };
+  return { sprite, activeLayerIndex, activeFrameIndex };
 }
 
 function _drawDataURL(ctx, dataURL, w, h) {

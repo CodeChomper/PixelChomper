@@ -6,7 +6,6 @@
  * Returns a Promise<Sprite|null>.
  */
 import { Sprite } from '../model/Sprite.js';
-import { Layer } from '../model/Layer.js';
 
 export class ImportSpriteSheet {
   /**
@@ -46,10 +45,10 @@ async function _loadImageAsSprite(file) {
     if (w > 2048 || h > 2048) throw new Error('Image is too large (max 2048×2048).');
 
     const sprite = new Sprite(w, h, null);
-    // Replace the default background layer with the image data
-    sprite.layers[0].name = 'Background';
-    sprite.layers[0].ctx.clearRect(0, 0, w, h);
-    sprite.layers[0].ctx.drawImage(img, 0, 0);
+    // Draw the image into the first cel (layer 0, frame 0)
+    const cel = sprite.cels[0][0];
+    cel.ctx.clearRect(0, 0, w, h);
+    cel.ctx.drawImage(img, 0, 0);
     return sprite;
   } finally {
     URL.revokeObjectURL(url);

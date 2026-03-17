@@ -8,7 +8,7 @@ export class EyedropperTool extends Tool {
   onPointerDown(pos, event, state) {
     if (!state.sprite) return;
     // Sample from the composited result (all visible layers merged)
-    const composited = state.sprite.getComposited();
+    const composited = state.sprite.getComposited(state.activeFrameIndex);
     const ctx = composited.getContext('2d');
     if (pos.x < 0 || pos.y < 0 || pos.x >= composited.width || pos.y >= composited.height) return;
     const data = ctx.getImageData(pos.x, pos.y, 1, 1).data;

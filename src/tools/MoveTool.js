@@ -1,21 +1,21 @@
 import { Tool } from './Tool.js';
 
 /**
- * Move tool: moves selection contents (or entire active layer if no selection).
+ * Move tool: moves selection contents (or entire active cel if no selection).
  * Drag to offset, release to commit.
  */
 export class MoveTool extends Tool {
   constructor() {
     super('move', 'Move', '✥');
     this._start = null;
-    this._originalPixels = null; // [{x, y, color}] saved before move
-    this._selectionPixels = null; // pixels being moved
+    this._originalPixels = null;
+    this._selectionPixels = null;
     this._originalMask = null;
   }
 
   onPointerDown(pos, event, state) {
-    const layer = state.activeLayer;
-    if (!layer) return;
+    const cel = state.activeCel;
+    if (!cel) return;
     this._start = { ...pos };
     const w = state.sprite.width, h = state.sprite.height;
     const mask = state.selection;
@@ -26,17 +26,16 @@ export class MoveTool extends Tool {
       for (let i = 0; i < mask.length; i++) {
         if (!mask[i]) continue;
         const x = i % w, y = Math.floor(i / w);
-        const color = layer.getPixel(x, y);
+        const color = cel.getPixel(x, y);
         if (color) {
           this._selectionPixels.push({ x, y, color });
           this._originalPixels.push({ x, y, color: { r: 0, g: 0, b: 0, a: 0 } });
         }
       }
     } else {
-      // Move entire active layer contents
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
-          const color = layer.getPixel(x, y);
+          const color = cel.getPixel(x, y);
           if (color && color.a > 0) {
             this._selectionPixels.push({ x, y, color });
             this._originalPixels.push({ x, y, color: { r: 0, g: 0, b: 0, a: 0 } });
@@ -53,29 +52,24 @@ export class MoveTool extends Tool {
     const dy = pos.y - this._start.y;
     const preview = [
       ...this._originalPixels,
-      ...this._selectionPixels.map(p => ({
-        x: p.x + dx, y: p.y + dy, color: p.color
-      }))
+      ...this._selectionPixels.map(p => ({ x: p.x + dx, y: p.y + dy, color: p.color })),
     ];
     state.setPreviewPixels(preview);
   }
 
   onPointerUp(pos, event, state) {
-    const layer = state.activeLayer;
-    if (!this._start || !this._selectionPixels || !layer) return;
+    const cel = state.activeCel;
+    if (!this._start || !this._selectionPixels || !cel) return;
     const dx = pos.x - this._start.x;
     const dy = pos.y - this._start.y;
-    // Erase originals on active layer
-    layer.setPixels(this._originalPixels);
-    // Draw at new position on active layer
+    cel.setPixels(this._originalPixels);
     const moved = this._selectionPixels
       .map(p => ({ x: p.x + dx, y: p.y + dy, color: p.color }))
       .filter(p => p.x >= 0 && p.x < state.sprite.width && p.y >= 0 && p.y < state.sprite.height);
-    layer.setPixels(moved);
+    cel.setPixels(moved);
     state.setPreviewPixels(null);
     state.events.emit('sprite:modified');
 
-    // Update selection mask offset
     if (this._originalMask) {
       const w = state.sprite.width, h = state.sprite.height;
       const newMask = new Uint8Array(w * h);

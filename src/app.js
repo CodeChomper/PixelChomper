@@ -22,6 +22,7 @@ import { ToolOptions } from './ui/ToolOptions.js';
 import { StatusBar } from './ui/StatusBar.js';
 import { ColorPanel } from './ui/ColorPanel.js';
 import { LayerPanel } from './ui/LayerPanel.js';
+import { Timeline } from './ui/Timeline.js';
 import { Dialog } from './ui/Dialog.js';
 import { HelpDialog } from './ui/HelpDialog.js';
 import { clamp, MIN_ZOOM, MAX_ZOOM } from './core/Constants.js';
@@ -85,6 +86,7 @@ class App {
     this.statusBar = new StatusBar(this.state, document.getElementById('statusbar'));
     this.colorPanel = new ColorPanel(this.state, document.getElementById('colors-panel'));
     this.layerPanel = new LayerPanel(this.state, document.getElementById('layers-panel'));
+    this.timeline = new Timeline(this.state, document.getElementById('timeline'));
 
     // Input handling
     this.canvasInput = new CanvasInput(this.state, this.renderer, this.toolManager);
@@ -93,7 +95,7 @@ class App {
     this.state.events.on('file:new', () => this._showNewSpriteDialog());
     this.state.events.on('file:open', () => this._loadProject());
     this.state.events.on('file:save', () => ProjectFile.save(this.state));
-    this.state.events.on('file:export-png', () => ExportPNG.download(this.state.sprite));
+    this.state.events.on('file:export-png', () => ExportPNG.download(this.state.sprite, this.state.activeFrameIndex));
     this.state.events.on('file:export-gif', () => ExportGIF.download(this.state.sprite));
     this.state.events.on('file:export-spritesheet', () => this._showExportSpritesheetDialog());
     this.state.events.on('file:import-image', () => this._importImage());
@@ -143,6 +145,14 @@ class App {
     this.state.events.on('layer:remove', () => this.state.removeLayer());
     this.state.events.on('layer:merge-down', () => this.state.mergeDown());
     this.state.events.on('layer:flatten', () => this.state.flattenLayers());
+
+    // Frame menu
+    this.state.events.on('frame:add', () => this.state.addFrame());
+    this.state.events.on('frame:duplicate', () => this.state.duplicateFrame());
+    this.state.events.on('frame:remove', () => this.state.removeFrame());
+    this.state.events.on('frame:prev', () => this.state.setActiveFrame(this.state.activeFrameIndex - 1));
+    this.state.events.on('frame:next', () => this.state.setActiveFrame(this.state.activeFrameIndex + 1));
+    this.state.events.on('frame:play', () => this.state.togglePlayback());
 
     // Help
     this.state.events.on('help:shortcuts', () => HelpDialog.show());
@@ -222,6 +232,7 @@ class App {
     if (!result) return;
     this.state.setSprite(result.sprite);
     this.state.setActiveLayer(result.activeLayerIndex);
+    this.state.setActiveFrame(result.activeFrameIndex ?? 0);
     this._fitToScreen();
   }
 

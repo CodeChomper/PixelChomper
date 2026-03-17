@@ -18,6 +18,7 @@
   --menubar-height: 28px;
   --tooloptions-height: 32px;
   --statusbar-height: 24px;
+  --timeline-height: 130px;
   --panel-width: 200px;
   --font-size: 12px;
   --font-family: 'Segoe UI', -apple-system, sans-serif;
@@ -48,12 +49,13 @@ html, body {
   display: grid;
   width: 100%;
   height: 100%;
-  grid-template-rows: var(--menubar-height) var(--tooloptions-height) 1fr var(--statusbar-height);
+  grid-template-rows: var(--menubar-height) var(--tooloptions-height) 1fr var(--timeline-height) var(--statusbar-height);
   grid-template-columns: var(--toolbar-width) 1fr var(--panel-width);
   grid-template-areas:
     "menubar   menubar      menubar"
     "toolbar   tooloptions  panel"
     "toolbar   canvas       panel"
+    "toolbar   timeline     panel"
     "statusbar statusbar    statusbar";
 }
 
@@ -858,4 +860,183 @@ html, body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--bg-active);
+}
+
+/* ── Timeline ─────────────────────────────────────────── */
+
+#timeline {
+  grid-area: timeline;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.timeline-btn {
+  padding: 2px 8px;
+  font-size: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.timeline-btn:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-btn-danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.timeline-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.timeline-onion-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.timeline-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  padding: 1px 3px;
+  font-size: 10px;
+}
+
+.timeline-input-num {
+  width: 36px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.timeline-grid-wrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.timeline-grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+.timeline-corner {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 2px 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.timeline-frame-header {
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 2px 0;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-frame-header:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-frame-header.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.timeline-layer-label {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 2px 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.timeline-layer-label:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-layer-label.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-left: 2px solid var(--accent);
+  padding-left: 2px;
+}
+
+.timeline-cell {
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: var(--bg-primary);
+}
+
+.timeline-cell:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-cell.active {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.timeline-thumb {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border-radius: 1px;
 }

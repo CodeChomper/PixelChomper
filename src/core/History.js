@@ -1,6 +1,6 @@
 /**
  * Snapshot-based undo/redo history.
- * Each entry: { layerIndex, imageData, selectionMask }
+ * Each entry: { layerIndex, frameIndex, imageData, selectionMask }
  *
  * Push a snapshot BEFORE a modification. Undo restores the snapshot
  * and saves the current state to the redo stack.
@@ -13,15 +13,13 @@ export class History {
   }
 
   /**
-   * Capture the current state of a layer before a modification.
+   * Capture the current state of a cel before a modification.
    * Clears the redo stack (new action invalidates redo history).
-   * @param {number} layerIndex
-   * @param {ImageData} imageData - clone of the layer's pixels before change
-   * @param {Uint8Array|null} selectionMask
    */
-  push(layerIndex, imageData, selectionMask) {
+  push(layerIndex, frameIndex, imageData, selectionMask) {
     this._undoStack.push({
       layerIndex,
+      frameIndex,
       imageData,
       selectionMask: selectionMask ? selectionMask.slice() : null,
     });
@@ -31,16 +29,14 @@ export class History {
 
   /**
    * Undo: pop last snapshot, push current state onto redo stack.
-   * @param {number} currentLayerIndex
-   * @param {ImageData} currentImageData
-   * @param {Uint8Array|null} currentSelectionMask
-   * @returns {{ layerIndex, imageData, selectionMask }|null}
+   * @returns {{ layerIndex, frameIndex, imageData, selectionMask }|null}
    */
-  undo(currentLayerIndex, currentImageData, currentSelectionMask) {
+  undo(currentLayerIndex, currentFrameIndex, currentImageData, currentSelectionMask) {
     if (!this._undoStack.length) return null;
     const snapshot = this._undoStack.pop();
     this._redoStack.push({
       layerIndex: currentLayerIndex,
+      frameIndex: currentFrameIndex,
       imageData: currentImageData,
       selectionMask: currentSelectionMask ? currentSelectionMask.slice() : null,
     });
@@ -49,12 +45,14 @@ export class History {
 
   /**
    * Redo: pop from redo stack, push current state onto undo stack.
+   * @returns {{ layerIndex, frameIndex, imageData, selectionMask }|null}
    */
-  redo(currentLayerIndex, currentImageData, currentSelectionMask) {
+  redo(currentLayerIndex, currentFrameIndex, currentImageData, currentSelectionMask) {
     if (!this._redoStack.length) return null;
     const snapshot = this._redoStack.pop();
     this._undoStack.push({
       layerIndex: currentLayerIndex,
+      frameIndex: currentFrameIndex,
       imageData: currentImageData,
       selectionMask: currentSelectionMask ? currentSelectionMask.slice() : null,
     });
@@ -64,7 +62,6 @@ export class History {
   canUndo() { return this._undoStack.length > 0; }
   canRedo() { return this._redoStack.length > 0; }
 
-  /** Clear all history (e.g. when a new sprite is loaded). */
   clear() {
     this._undoStack = [];
     this._redoStack = [];

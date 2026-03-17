@@ -23,28 +23,44 @@ export class State {
     this.showGrid = false;
 
     // Stage 2 state
-    this.previewPixels = null;      // [{x,y,color}] overlay during shape dragging
-    this.selection = null;          // Uint8Array bitmask (width*height), null = no selection
-    this.clipboard = null;          // {pixels:[{x,y,color}], width, height} or null
-    this.pixelPerfect = false;      // pixel-perfect drawing mode
-    this.shapeMode = 'outline';     // 'outline' or 'filled'
-    this.fillTolerance = 0;         // 0-255
-    this.fillContiguous = true;     // flood fill contiguous toggle
-    this.sprayRadius = 10;          // spray tool radius
-    this.sprayDensity = 50;         // spray tool density (0-100)
-
-    // Stage 4 state
-    this.activeLayerIndex = 0;      // index into sprite.layers[]
+    this.previewPixels = null;
+    this.selection = null;
+    this.clipboard = null;
+    this.pixelPerfect = false;
+    this.shapeMode = 'outline';
+    this.fillTolerance = 0;
+    this.fillContiguous = true;
+    this.sprayRadius = 10;
+    this.sprayDensity = 50;
 
     // Stage 3 state
-    this.shadingInk = false;        // pencil lightens/darkens instead of replacing
-    this.activePalette = null;      // Palette instance or null
-    this.recentColors = [];         // [{r,g,b,a}] most recent first
+    this.shadingInk = false;
+    this.activePalette = null;
+    this.recentColors = [];
     this._maxRecentColors = 8;
+
+    // Stage 4 state
+    this.activeLayerIndex = 0;
 
     // Stage 5 state
     this.history = new History(50);
+
+    // Stage 6 state
+    this.activeFrameIndex = 0;
+    this.onionSkin = {
+      enabled: false,
+      prevCount: 1,
+      nextCount: 1,
+      opacity: 0.5,
+    };
+    this._playInterval = null;
+    this.isPlaying = false;
+    this.playbackFps = 10;
+    this.playbackLoop = 'forward'; // 'forward' | 'reverse' | 'pingpong'
+    this._pingpongDir = 1;
   }
+
+  // ── Color / brush / zoom setters ──────────────────────────────────────────
 
   setTool(tool) {
     if (this.activeTool === tool) return;
@@ -92,62 +108,76 @@ export class State {
   }
 
   setSprite(sprite) {
+    this.stopPlayback();
     this.sprite = sprite;
     this.activeLayerIndex = 0;
+    this.activeFrameIndex = 0;
     this.history.clear();
     this.events.emit('sprite:loaded', sprite);
   }
 
-  /**
-   * Snapshot the active layer's current pixels onto the undo stack.
-   * Call this BEFORE a destructive operation (tool stroke, cut, paste).
-   */
+  // ── Undo / redo ───────────────────────────────────────────────────────────
+
   pushHistorySnapshot() {
-    const layer = this.activeLayer;
-    if (!layer || !this.sprite) return;
-    const imageData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
-    this.history.push(this.activeLayerIndex, imageData, this.selection);
+    const cel = this.activeCel;
+    if (!cel || !this.sprite) return;
+    const imageData = cel.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    this.history.push(this.activeLayerIndex, this.activeFrameIndex, imageData, this.selection);
   }
 
-  /** Undo the last pixel modification. */
   undo() {
     if (!this.sprite || !this.history.canUndo()) return;
-    const layer = this.activeLayer;
-    if (!layer) return;
-    const currentData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
-    const snapshot = this.history.undo(this.activeLayerIndex, currentData, this.selection);
+    const cel = this.activeCel;
+    if (!cel) return;
+    const currentData = cel.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    const snapshot = this.history.undo(
+      this.activeLayerIndex, this.activeFrameIndex, currentData, this.selection,
+    );
     if (!snapshot) return;
-    const targetLayer = this.sprite.layers[snapshot.layerIndex];
-    if (targetLayer) {
-      targetLayer.ctx.putImageData(snapshot.imageData, 0, 0);
+    const targetCel = this.sprite.getCel(snapshot.layerIndex, snapshot.frameIndex);
+    if (targetCel) {
+      targetCel.ctx.putImageData(snapshot.imageData, 0, 0);
       this.activeLayerIndex = snapshot.layerIndex;
+      this.activeFrameIndex = snapshot.frameIndex;
       this.events.emit('layer:selected', this.activeLayerIndex);
+      this.events.emit('frame:changed', this.activeFrameIndex);
     }
     this.selection = snapshot.selectionMask;
     this.events.emit('selection:changed', this.selection);
     this.events.emit('sprite:modified');
   }
 
-  /** Redo the last undone modification. */
   redo() {
     if (!this.sprite || !this.history.canRedo()) return;
-    const layer = this.activeLayer;
-    if (!layer) return;
-    const currentData = layer.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
-    const snapshot = this.history.redo(this.activeLayerIndex, currentData, this.selection);
+    const cel = this.activeCel;
+    if (!cel) return;
+    const currentData = cel.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
+    const snapshot = this.history.redo(
+      this.activeLayerIndex, this.activeFrameIndex, currentData, this.selection,
+    );
     if (!snapshot) return;
-    const targetLayer = this.sprite.layers[snapshot.layerIndex];
-    if (targetLayer) {
-      targetLayer.ctx.putImageData(snapshot.imageData, 0, 0);
+    const targetCel = this.sprite.getCel(snapshot.layerIndex, snapshot.frameIndex);
+    if (targetCel) {
+      targetCel.ctx.putImageData(snapshot.imageData, 0, 0);
       this.activeLayerIndex = snapshot.layerIndex;
+      this.activeFrameIndex = snapshot.frameIndex;
       this.events.emit('layer:selected', this.activeLayerIndex);
+      this.events.emit('frame:changed', this.activeFrameIndex);
     }
     this.selection = snapshot.selectionMask;
     this.events.emit('selection:changed', this.selection);
     this.events.emit('sprite:modified');
   }
 
-  /** Get the currently active layer, or null. */
+  // ── Active cel / layer accessors ─────────────────────────────────────────
+
+  /** The current cel (pixel data for the active layer × active frame). */
+  get activeCel() {
+    if (!this.sprite) return null;
+    return this.sprite.getCel(this.activeLayerIndex, this.activeFrameIndex) || null;
+  }
+
+  /** The current layer (metadata only). */
   get activeLayer() {
     if (!this.sprite) return null;
     return this.sprite.layers[this.activeLayerIndex] || null;
@@ -158,6 +188,129 @@ export class State {
     this.activeLayerIndex = index;
     this.events.emit('layer:selected', index);
   }
+
+  // ── Frame operations ──────────────────────────────────────────────────────
+
+  setActiveFrame(index) {
+    if (!this.sprite) return;
+    const clamped = Math.max(0, Math.min(index, this.sprite.frames.length - 1));
+    if (clamped === this.activeFrameIndex) return;
+    this.activeFrameIndex = clamped;
+    this.events.emit('frame:changed', clamped);
+    this.events.emit('sprite:modified');
+  }
+
+  addFrame() {
+    if (!this.sprite) return;
+    const newFi = this.sprite.addFrame(this.activeFrameIndex + 1);
+    this.activeFrameIndex = newFi;
+    this.events.emit('frame:added', newFi);
+    this.events.emit('frame:changed', newFi);
+    this.events.emit('sprite:modified');
+  }
+
+  duplicateFrame() {
+    if (!this.sprite) return;
+    const newFi = this.sprite.duplicateFrame(this.activeFrameIndex);
+    this.activeFrameIndex = newFi;
+    this.events.emit('frame:added', newFi);
+    this.events.emit('frame:changed', newFi);
+    this.events.emit('sprite:modified');
+  }
+
+  removeFrame() {
+    if (!this.sprite || this.sprite.frames.length <= 1) return;
+    const next = this.sprite.removeFrame(this.activeFrameIndex);
+    this.activeFrameIndex = next;
+    this.events.emit('frame:removed');
+    this.events.emit('frame:changed', next);
+    this.events.emit('sprite:modified');
+  }
+
+  setFrameDuration(frameIndex, duration) {
+    if (!this.sprite) return;
+    const frame = this.sprite.frames[frameIndex];
+    if (!frame) return;
+    frame.duration = Math.max(1, duration);
+    this.events.emit('frame:duration-changed', frameIndex);
+  }
+
+  // ── Playback ──────────────────────────────────────────────────────────────
+
+  togglePlayback() {
+    if (this.isPlaying) this.stopPlayback();
+    else this.startPlayback();
+  }
+
+  startPlayback() {
+    if (this.isPlaying || !this.sprite || this.sprite.frames.length < 2) return;
+    this.isPlaying = true;
+    this._pingpongDir = 1;
+    this.events.emit('playback:changed', true);
+    this._scheduleNextFrame();
+  }
+
+  stopPlayback() {
+    if (!this.isPlaying) return;
+    this.isPlaying = false;
+    if (this._playTimeout) {
+      clearTimeout(this._playTimeout);
+      this._playTimeout = null;
+    }
+    this.events.emit('playback:changed', false);
+  }
+
+  _scheduleNextFrame() {
+    if (!this.isPlaying || !this.sprite) return;
+    const delay = Math.round(1000 / this.playbackFps);
+    this._playTimeout = setTimeout(() => {
+      if (!this.isPlaying) return;
+      this._advancePlayback();
+      this._scheduleNextFrame();
+    }, delay);
+  }
+
+  _advancePlayback() {
+    if (!this.sprite) return;
+    const total = this.sprite.frames.length;
+    let next = this.activeFrameIndex;
+    if (this.playbackLoop === 'forward') {
+      next = (this.activeFrameIndex + 1) % total;
+    } else if (this.playbackLoop === 'reverse') {
+      next = (this.activeFrameIndex - 1 + total) % total;
+    } else if (this.playbackLoop === 'pingpong') {
+      next = this.activeFrameIndex + this._pingpongDir;
+      if (next >= total) { next = total - 2; this._pingpongDir = -1; }
+      else if (next < 0) { next = 1; this._pingpongDir = 1; }
+    }
+    this.activeFrameIndex = next;
+    this.events.emit('frame:changed', next);
+    this.events.emit('sprite:modified');
+  }
+
+  setPlaybackFps(fps) {
+    this.playbackFps = Math.max(1, Math.min(60, fps));
+    // Sync all frame durations so export (GIF/spritesheet) matches preview speed
+    if (this.sprite) {
+      const duration = Math.round(1000 / this.playbackFps);
+      for (const frame of this.sprite.frames) frame.duration = duration;
+      this.events.emit('frame:duration-changed', -1);
+    }
+  }
+
+  setPlaybackLoop(mode) {
+    this.playbackLoop = mode;
+  }
+
+  // ── Onion skin ────────────────────────────────────────────────────────────
+
+  setOnionSkin(settings) {
+    Object.assign(this.onionSkin, settings);
+    this.events.emit('onionskin:changed', this.onionSkin);
+    this.events.emit('sprite:modified');
+  }
+
+  // ── Layer operations ──────────────────────────────────────────────────────
 
   addLayer(name) {
     if (!this.sprite) return;
@@ -261,26 +414,24 @@ export class State {
     this.events.emit('layer:lock-changed', index);
   }
 
-  toggleGrid() {
-    this.showGrid = !this.showGrid;
-    this.events.emit('view:grid-changed', this.showGrid);
-  }
+  // ── Pixel operations ──────────────────────────────────────────────────────
 
   /**
-   * Write pixels to the active sprite, respecting the current selection mask.
-   * Pixels outside the selection are silently dropped. Emits 'sprite:modified'.
+   * Write pixels to the active cel, respecting the current selection mask.
+   * This is the single write choke-point for all drawing tools.
    */
   commitPixels(pixels) {
     if (!this.sprite || !pixels || !pixels.length) return;
     const layer = this.activeLayer;
-    if (!layer || layer.locked) return;
+    const cel = this.activeCel;
+    if (!layer || layer.locked || !cel) return;
     const filtered = this.selection
       ? pixels.filter(p => {
           const idx = p.y * this.sprite.width + p.x;
           return this.selection[idx] === 1;
         })
       : pixels;
-    layer.setPixels(filtered);
+    cel.setPixels(filtered);
     this.events.emit('sprite:modified');
   }
 
@@ -298,6 +449,15 @@ export class State {
     this.selection = null;
     this.events.emit('selection:changed', null);
   }
+
+  // ── View ──────────────────────────────────────────────────────────────────
+
+  toggleGrid() {
+    this.showGrid = !this.showGrid;
+    this.events.emit('view:grid-changed', this.showGrid);
+  }
+
+  // ── Misc state setters ────────────────────────────────────────────────────
 
   togglePixelPerfect() {
     this.pixelPerfect = !this.pixelPerfect;
@@ -341,7 +501,7 @@ export class State {
 
   pushRecentColor(color) {
     this.recentColors = this.recentColors.filter(
-      c => !(c.r === color.r && c.g === color.g && c.b === color.b && c.a === color.a)
+      c => !(c.r === color.r && c.g === color.g && c.b === color.b && c.a === color.a),
     );
     this.recentColors.unshift({ ...color });
     if (this.recentColors.length > this._maxRecentColors) {

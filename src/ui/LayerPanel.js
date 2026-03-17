@@ -188,7 +188,7 @@ export class LayerPanel {
       thumb.className = 'layer-thumbnail';
       thumb.width = 24;
       thumb.height = 24;
-      this._drawThumbnail(thumb, layer);
+      this._drawThumbnail(thumb, i);
 
       // Name (double-click to rename)
       const nameEl = document.createElement('span');
@@ -231,10 +231,9 @@ export class LayerPanel {
     }
   }
 
-  _drawThumbnail(canvas, layer) {
+  _drawThumbnail(canvas, layerIndex) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, 24, 24);
-    // Checkerboard background
     ctx.fillStyle = '#444460';
     ctx.fillRect(0, 0, 24, 24);
     ctx.fillStyle = '#38384e';
@@ -244,7 +243,8 @@ export class LayerPanel {
       }
     }
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(layer.canvas, 0, 0, 24, 24);
+    const cel = this.state.sprite && this.state.sprite.getCel(layerIndex, this.state.activeFrameIndex);
+    if (cel) ctx.drawImage(cel.canvas, 0, 0, 24, 24);
   }
 
   _updateThumbnails() {
@@ -254,7 +254,7 @@ export class LayerPanel {
     // Thumbnails are rendered top-to-bottom (reverse order)
     let idx = layers.length - 1;
     for (const thumb of thumbs) {
-      if (idx >= 0) this._drawThumbnail(thumb, layers[idx]);
+      if (idx >= 0) this._drawThumbnail(thumb, idx);
       idx--;
     }
   }
