@@ -40,8 +40,10 @@ export class ProjectFile {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   /**
@@ -68,7 +70,9 @@ export class ProjectFile {
         }
       };
       input.oncancel = () => resolve(null);
+      document.body.appendChild(input);
       input.click();
+      document.body.removeChild(input);
     });
   }
 }

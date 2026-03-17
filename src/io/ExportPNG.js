@@ -5,14 +5,12 @@ export class ExportPNG {
   static download(sprite, filename = 'sprite.png') {
     if (!sprite) return;
     const composited = sprite.getComposited();
-    composited.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    }, 'image/png');
+    const url = composited.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 }
