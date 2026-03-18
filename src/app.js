@@ -263,4 +263,44 @@ class App {
 // Boot
 window.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
+  _initTimelineResizer();
 });
+
+function _initTimelineResizer() {
+  const resizer = document.getElementById('timeline-resizer');
+  const MIN_HEIGHT = 60;
+  const MAX_HEIGHT = 500;
+  const LS_KEY = 'pixelchomper:timeline-height';
+
+  const saved = parseInt(localStorage.getItem(LS_KEY), 10);
+  if (saved && saved >= MIN_HEIGHT && saved <= MAX_HEIGHT) {
+    document.documentElement.style.setProperty('--timeline-height', saved + 'px');
+  }
+
+  let startY = 0;
+  let startHeight = 0;
+
+  resizer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startY = e.clientY;
+    startHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-height'), 10);
+    resizer.classList.add('dragging');
+
+    const onMove = e => {
+      const delta = startY - e.clientY;
+      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight + delta));
+      document.documentElement.style.setProperty('--timeline-height', newHeight + 'px');
+    };
+
+    const onUp = () => {
+      resizer.classList.remove('dragging');
+      const finalHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-height'), 10);
+      localStorage.setItem(LS_KEY, finalHeight);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
