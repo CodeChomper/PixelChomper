@@ -272,11 +272,32 @@ export class CanvasRenderer {
     ctx.lineDashOffset = 0;
   }
 
+  // Sample the already-composited canvas pixels in the given screen rect and return
+  // contrasting cursor colors (white on dark, black on light).
+  _getCursorContrastColor(ctx, screenX, screenY, screenW, screenH) {
+    const el = ctx.canvas;
+    const x = Math.max(0, Math.floor(screenX));
+    const y = Math.max(0, Math.floor(screenY));
+    const w = Math.min(Math.max(1, Math.floor(screenW)), el.width - x);
+    const h = Math.min(Math.max(1, Math.floor(screenH)), el.height - y);
+    if (w <= 0 || h <= 0) return { stroke: 'rgba(255,255,255,0.9)', fill: 'rgba(255,255,255,0.3)' };
+    const data = ctx.getImageData(x, y, w, h).data;
+    let total = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      total += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    }
+    const luma = total / (data.length / 4);
+    return luma > 128
+      ? { stroke: 'rgba(0,0,0,0.85)',   fill: 'rgba(0,0,0,0.2)' }
+      : { stroke: 'rgba(255,255,255,0.9)', fill: 'rgba(255,255,255,0.3)' };
+  }
+
   _drawPixelHighlight(ctx, ox, oy, zoom) {
     const pos = this._cursorPos;
     const sx = ox + pos.x * zoom;
     const sy = oy + pos.y * zoom;
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    const { stroke } = this._getCursorContrastColor(ctx, sx, sy, zoom, zoom);
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
     ctx.strokeRect(sx + 0.5, sy + 0.5, zoom - 1, zoom - 1);
   }
@@ -284,8 +305,19 @@ export class CanvasRenderer {
   _drawBrushCursor(ctx, ox, oy, zoom) {
     const pos = this._cursorPos;
     const offsets = getBrushStamp(this.state.brushSize, this.state.brushShape);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    // Compute brush bounding box in screen coords for the contrast sample
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const { dx, dy } of offsets) {
+      const bx = ox + (pos.x + dx) * zoom;
+      const by = oy + (pos.y + dy) * zoom;
+      if (bx < minX) minX = bx;
+      if (by < minY) minY = by;
+      if (bx + zoom > maxX) maxX = bx + zoom;
+      if (by + zoom > maxY) maxY = by + zoom;
+    }
+    const { stroke, fill } = this._getCursorContrastColor(ctx, minX, minY, maxX - minX, maxY - minY);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
     for (const { dx, dy } of offsets) {
       ctx.fillRect(ox + (pos.x + dx) * zoom, oy + (pos.y + dy) * zoom, zoom, zoom);

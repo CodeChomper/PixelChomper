@@ -1,3 +1,5 @@
+const VERSION = '0.1.0';
+
 /**
  * Bottom status bar — shows cursor position, canvas size, zoom level, tool name, frame number.
  */
@@ -25,6 +27,7 @@ export class StatusBar {
 
   _build() {
     this.container.innerHTML = '';
+    this._addItem(`v${VERSION}`);
     this._posEl = this._addItem('Pos: --,--');
     this._sizeEl = this._addItem('Size: --x--');
     this._zoomEl = this._addItem(`Zoom: ${this.state.zoom}x`);

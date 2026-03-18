@@ -1,19 +1,21 @@
-/* PixelChomper — Dark pixel-art editor theme */
+/* PixelChomper — CodeChomper brand theme */
 :root {
-  --bg-primary: #1e1e2e;
-  --bg-secondary: #252535;
-  --bg-tertiary: #2a2a3c;
-  --bg-hover: #35354a;
-  --bg-active: #40405a;
-  --border-color: #3a3a50;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0b0;
-  --text-muted: #707080;
-  --accent: #6c8cbf;
-  --accent-hover: #7d9dd0;
-  --danger: #bf6c6c;
-  --success: #6cbf6c;
-  --warning: #bfbf6c;
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #222222;
+  --bg-tertiary: #2a2a2a;
+  --bg-hover: #333333;
+  --bg-active: #444444;
+  --border-color: #303030;
+  --text-primary: #dddddd;
+  --text-secondary: #aaaaaa;
+  --text-muted: #777777;
+  --accent: #8cc641;
+  --accent-hover: #9ed44a;
+  --accent-secondary: #bf4e30;
+  --accent-tertiary: #5e772c;
+  --danger: #bf4e30;
+  --success: #8cc641;
+  --warning: #d4a017;
   --toolbar-width: 40px;
   --menubar-height: 28px;
   --tooloptions-height: 32px;
@@ -21,10 +23,11 @@
   --timeline-height: 130px;
   --panel-width: 200px;
   --font-size: 12px;
-  --font-family: 'Segoe UI', -apple-system, sans-serif;
+  --font-family: 'Space Grotesk', Georgia, sans-serif;
+  --font-heading: 'Archivo Black', Arial, sans-serif;
   --font-mono: 'Consolas', 'Monaco', monospace;
-  --checker-light: #444460;
-  --checker-dark: #38384e;
+  --checker-light: #3a3a3a;
+  --checker-dark: #2e2e2e;
 }
 
 *, *::before, *::after {
@@ -281,6 +284,7 @@ html, body {
 
 .panel-section-title {
   font-size: 10px;
+  font-family: var(--font-heading);
   text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 6px;
@@ -404,7 +408,8 @@ html, body {
 
 .dialog-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
+  font-family: var(--font-heading);
   margin-bottom: 12px;
   color: var(--text-primary);
 }
@@ -697,7 +702,7 @@ html, body {
 .layer-panel-header {
   padding: 6px 8px;
   font-size: 11px;
-  font-weight: 600;
+  font-family: var(--font-heading);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
