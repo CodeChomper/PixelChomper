@@ -6,28 +6,44 @@
  */
 export class ExportGIF {
   static download(sprite, filename = 'sprite.gif') {
-    if (!sprite) return;
-    const frameCount = sprite.frames.length;
-    if (frameCount === 1) {
-      // Single frame — simpler path
-      const composited = sprite.getComposited(0);
-      const { width: w, height: h } = sprite;
-      const ctx = composited.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, w, h);
-      const blob = _encodeGIF([{ pixels: imageData.data, duration: sprite.frames[0].duration }], w, h);
-      _triggerDownload(blob, filename);
-    } else {
-      // Multi-frame animated GIF
-      const { width: w, height: h } = sprite;
-      const frames = sprite.frames.map((frame, fi) => {
-        const composited = sprite.getComposited(fi);
-        const ctx = composited.getContext('2d');
-        return { pixels: ctx.getImageData(0, 0, w, h).data, duration: frame.duration };
-      });
-      const blob = _encodeGIF(frames, w, h);
-      _triggerDownload(blob, filename);
+    if (!sprite || !sprite.frames.length) return;
+    const { width: w, height: h } = sprite;
+    const frameData = sprite.frames.map((frame, fi) => ({
+      pixels: _compositeFrameJS(sprite, fi, w, h),
+      duration: frame.duration,
+    }));
+
+    const blob = _encodeGIF(frameData, w, h);
+    _triggerDownload(blob, filename);
+  }
+}
+
+// Composite layers in pure JavaScript by reading directly from each Cel's
+// willReadFrequently canvas (getImageData is already used internally in Cel.getPixel).
+// Avoids all canvas draw operations so there is no GPU readback.
+function _compositeFrameJS(sprite, fi, w, h) {
+  const out = new Uint8ClampedArray(w * h * 4); // all zeros = transparent
+  for (let li = 0; li < sprite.layers.length; li++) {
+    const layer = sprite.layers[li];
+    if (!layer.visible) continue;
+    const cel = sprite.cels[li]?.[fi];
+    if (!cel) continue;
+    const layerA = layer.opacity / 100;
+    const src = cel.ctx.getImageData(0, 0, w, h).data;
+    for (let i = 0; i < w * h; i++) {
+      const o = i * 4;
+      const sa = (src[o + 3] / 255) * layerA;
+      if (sa === 0) continue;
+      const da = out[o + 3] / 255;
+      const oa = sa + da * (1 - sa);
+      if (oa === 0) continue;
+      out[o]     = (src[o]     * sa + out[o]     * da * (1 - sa)) / oa;
+      out[o + 1] = (src[o + 1] * sa + out[o + 1] * da * (1 - sa)) / oa;
+      out[o + 2] = (src[o + 2] * sa + out[o + 2] * da * (1 - sa)) / oa;
+      out[o + 3] = oa * 255;
     }
   }
+  return out;
 }
 
 function _triggerDownload(blob, filename) {
@@ -139,7 +155,7 @@ function _encodeGIF(frames, w, h) {
     const delay = Math.round(duration / 10); // GIF delay is in centiseconds
     // Disposal method 2 (restore to background) for animated GIFs so transparent
     // pixels in each frame don't bleed through from the previous frame.
-    const disposalMethod = frames.length > 1 ? 2 : 0;
+    const disposalMethod = frames.length > 1 ? 1 : 0;
     const packedField = (disposalMethod << 2) | (transpIdx !== -1 ? 0x01 : 0x00);
     out.push(
       0x21, 0xF9, 0x04,
