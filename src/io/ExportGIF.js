@@ -1,233 +1,223 @@
 /**
  * Export the sprite as an animated GIF download.
- * Uses a self-contained GIF89a + LZW encoder — zero dependencies.
- * Supports up to 256 colors. Transparent pixels (alpha < 128) use the
- * GIF transparency extension.
+ *
+ * Encoding: self-contained GIF89a + LZW encoder, zero dependencies.
+ * Up to 256 colors; transparent pixels (alpha < 128) map to a reserved
+ * palette slot and are flagged via the Graphic Control Extension.
+ *
+ * Animation: disposal method 2 ("restore to background") is used so every
+ * frame is drawn onto a clean transparent canvas rather than accumulating
+ * on top of the previous frame. The Netscape 2.0 extension makes it loop
+ * forever. Each frame's delay comes from the per-frame duration setting
+ * (the FPS control in the Timeline panel sets this value).
  */
 export class ExportGIF {
   static download(sprite, filename = 'sprite.gif') {
     if (!sprite || !sprite.frames.length) return;
     const { width: w, height: h } = sprite;
-    const frameData = sprite.frames.map((frame, fi) => ({
-      pixels: _compositeFrameJS(sprite, fi, w, h),
-      duration: frame.duration,
+
+    const frames = sprite.frames.map((frame, fi) => ({
+      pixels:   _compositeFrame(sprite, fi, w, h), // Uint8ClampedArray RGBA
+      duration: frame.duration,                     // milliseconds
     }));
 
-    const blob = _encodeGIF(frameData, w, h);
-    _triggerDownload(blob, filename);
+    _triggerDownload(_encodeGIF(frames, w, h), filename);
   }
 }
 
-// Composite layers in pure JavaScript by reading directly from each Cel's
-// willReadFrequently canvas (getImageData is already used internally in Cel.getPixel).
-// Avoids all canvas draw operations so there is no GPU readback.
-function _compositeFrameJS(sprite, fi, w, h) {
-  const out = new Uint8ClampedArray(w * h * 4); // all zeros = transparent
-  for (let li = 0; li < sprite.layers.length; li++) {
-    const layer = sprite.layers[li];
-    if (!layer.visible) continue;
-    const cel = sprite.cels[li]?.[fi];
-    if (!cel) continue;
-    const layerA = layer.opacity / 100;
-    const src = cel.ctx.getImageData(0, 0, w, h).data;
-    for (let i = 0; i < w * h; i++) {
-      const o = i * 4;
-      const sa = (src[o + 3] / 255) * layerA;
-      if (sa === 0) continue;
-      const da = out[o + 3] / 255;
-      const oa = sa + da * (1 - sa);
-      if (oa === 0) continue;
-      out[o]     = (src[o]     * sa + out[o]     * da * (1 - sa)) / oa;
-      out[o + 1] = (src[o + 1] * sa + out[o + 1] * da * (1 - sa)) / oa;
-      out[o + 2] = (src[o + 2] * sa + out[o + 2] * da * (1 - sa)) / oa;
-      out[o + 3] = oa * 255;
-    }
-  }
-  return out;
-}
+// ─── Frame compositing ────────────────────────────────────────────────────────
 
-function _triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+/**
+ * Composite all visible layers for one frame into a flat RGBA array.
+ * Uses getComposited() (same path as ExportPNG) then copies to a
+ * willReadFrequently canvas so getImageData() is always CPU-safe.
+ */
+function _compositeFrame(sprite, fi, w, h) {
+  const src = sprite.getComposited(fi);
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(src, 0, 0);
+
+  return ctx.getImageData(0, 0, w, h).data;
 }
 
 // ─── GIF89a encoder ──────────────────────────────────────────────────────────
 
-/**
- * Encode one or more frames as a GIF89a file.
- * @param {{pixels:Uint8ClampedArray, duration:number}[]} frames
- * @param {number} w
- * @param {number} h
- */
 function _encodeGIF(frames, w, h) {
-  // Build a shared palette from all frames (up to 256 colors).
-  // Pre-scan for any transparent pixel so we can reserve palette slot 0 for
-  // transparency FIRST. This guarantees transpIdx === 0, which matches the
-  // LSD background-color-index (also 0), so disposal-method-2 restores to
-  // transparent rather than to whatever opaque color happens to be at slot 0.
-  const colorMap = new Map();
-  const palette = [];
-  let transpIdx = -1;
+  // ── Step 1: build shared palette ──────────────────────────────────────────
+  //
+  // Scan all frames to find unique opaque RGB colors (up to 256).
+  // If any pixel is transparent (alpha < 128) we reserve palette slot 0 for
+  // the transparency sentinel so that transpIdx is always 0, matching the
+  // Logical Screen Descriptor's background-color-index field.
 
+  const colorMap = new Map(); // RGB integer → palette index
+  const palette  = [];        // flat [R,G,B, R,G,B, ...] with length = entries*3
+  let   transpIdx = -1;
+
+  // Pass 1 – detect transparency
   let hasTransparency = false;
-  outer: for (const { pixels } of frames) {
-    for (let i = 0; i < w * h; i++) {
-      if (pixels[i * 4 + 3] < 128) { hasTransparency = true; break outer; }
+  scan: for (const { pixels } of frames) {
+    for (let i = 3; i < pixels.length; i += 4) {
+      if (pixels[i] < 128) { hasTransparency = true; break scan; }
     }
   }
+
   if (hasTransparency) {
     transpIdx = 0;
-    palette.push(0, 0, 0);
+    palette.push(0, 0, 0);   // black sentinel; never actually rendered
     colorMap.set('t', 0);
   }
 
+  // Pass 2 – collect unique opaque colors
   for (const { pixels } of frames) {
-    for (let i = 0; i < w * h; i++) {
-      const o = i * 4;
-      const r = pixels[o], g = pixels[o + 1], b = pixels[o + 2], a = pixels[o + 3];
-      if (a >= 128) {
-        const key = (r << 16) | (g << 8) | b;
-        if (!colorMap.has(key)) {
-          if (palette.length / 3 < 256) {
-            colorMap.set(key, palette.length / 3);
-            palette.push(r, g, b);
-          }
-        }
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] < 128) continue;
+      const key = (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2];
+      if (!colorMap.has(key) && palette.length / 3 < 256) {
+        colorMap.set(key, palette.length / 3);
+        palette.push(pixels[i], pixels[i + 1], pixels[i + 2]);
       }
     }
   }
 
-  // Pad palette to power of 2 (min 4)
-  const numColors = palette.length / 3 || 1;
+  // Pad palette to next power of 2 (GIF requires 2^N entries), minimum 4
+  const numColors = Math.max(1, palette.length / 3);
   let tableSize = 4;
   while (tableSize < numColors) tableSize <<= 1;
   while (palette.length < tableSize * 3) palette.push(0, 0, 0);
 
+  // colorDepth = log2(tableSize); minimum 2 (GIF LZW minimum code size floor)
   const colorDepth = Math.max(2, 31 - Math.clz32(tableSize));
-  const tableField = colorDepth - 1;
+  const tableField = colorDepth - 1; // GCT size field encodes as 2^(field+1)
+
+  // ── Step 2: assemble GIF byte stream ──────────────────────────────────────
 
   const out = [];
 
-  // GIF Header
+  // Header
   out.push(0x47, 0x49, 0x46, 0x38, 0x39, 0x61); // "GIF89a"
 
-  // Logical Screen Descriptor
-  _u16(out, w); _u16(out, h);
-  out.push(0x80 | (7 << 4) | tableField, 0, 0);
+  // Logical Screen Descriptor (7 bytes)
+  _u16(out, w);
+  _u16(out, h);
+  out.push(
+    0x80 | (7 << 4) | tableField, // GCT present; color res = 8 bits; GCT size
+    0,                              // background color index = 0 (transparent)
+    0,                              // pixel aspect ratio (square pixels)
+  );
 
   // Global Color Table
   for (let i = 0; i < tableSize * 3; i++) out.push(palette[i] || 0);
 
-  // Netscape Application Extension (for looping animation)
+  // Netscape Application Extension — infinite looping (multi-frame only)
   if (frames.length > 1) {
     out.push(
-      0x21, 0xFF, 0x0B,
-      // "NETSCAPE2.0"
-      0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
-      0x03, 0x01, 0x00, 0x00, // loop count = 0 (infinite)
-      0x00,
+      0x21, 0xFF, 0x0B,                                                   // App ext header, block size = 11
+      0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30, // "NETSCAPE2.0"
+      0x03, 0x01, 0x00, 0x00,                                             // sub-block: loop count = 0 (∞)
+      0x00,                                                                // block terminator
     );
   }
 
+  // ── Step 3: per-frame blocks ───────────────────────────────────────────────
+
   for (const { pixels, duration } of frames) {
-    // Build indexed pixel array for this frame
+    // Map each pixel to its palette index
     const indexed = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) {
       const o = i * 4;
-      const r = pixels[o], g = pixels[o + 1], b = pixels[o + 2], a = pixels[o + 3];
-      if (a < 128) {
-        indexed[i] = transpIdx !== -1 ? transpIdx : 0;
+      if (pixels[o + 3] < 128) {
+        indexed[i] = transpIdx >= 0 ? transpIdx : 0;
       } else {
-        const key = (r << 16) | (g << 8) | b;
-        let idx = colorMap.get(key);
-        if (idx === undefined) idx = _nearestColor(r, g, b, palette);
-        indexed[i] = idx;
+        const key = (pixels[o] << 16) | (pixels[o + 1] << 8) | pixels[o + 2];
+        const idx = colorMap.get(key);
+        indexed[i] = idx !== undefined
+          ? idx
+          : _nearestColor(pixels[o], pixels[o + 1], pixels[o + 2], palette);
       }
     }
 
-    // Graphic Control Extension
-    const delay = Math.round(duration / 10); // GIF delay is in centiseconds
-    // Disposal method 2 (restore to background) for animated GIFs so transparent
-    // pixels in each frame don't bleed through from the previous frame.
-    const disposalMethod = frames.length > 1 ? 1 : 0;
-    const packedField = (disposalMethod << 2) | (transpIdx !== -1 ? 0x01 : 0x00);
+    // Graphic Control Extension (8 bytes)
+    //   delay   : frame duration converted from ms → centiseconds
+    //   disposal: 2 = "restore to background" — clears frame before the next
+    //             one is drawn, so frames don't accumulate on each other.
+    const delay      = Math.max(1, Math.round(duration / 10));
+    const disposal   = frames.length > 1 ? 2 : 0;
+    const gcePacked  = (disposal << 2) | (transpIdx >= 0 ? 0x01 : 0x00);
     out.push(
-      0x21, 0xF9, 0x04,
-      packedField,
+      0x21, 0xF9, 0x04,                        // GCE introducer + label + block size
+      gcePacked,
       delay & 0xFF, (delay >> 8) & 0xFF,
-      transpIdx !== -1 ? transpIdx : 0,
-      0x00,
+      transpIdx >= 0 ? transpIdx : 0,           // transparent color index
+      0x00,                                     // block terminator
     );
 
-    // Image Descriptor
+    // Image Descriptor (10 bytes)
     out.push(0x2C);
-    _u16(out, 0); _u16(out, 0);
+    _u16(out, 0); _u16(out, 0); // left = 0, top = 0
     _u16(out, w); _u16(out, h);
-    out.push(0x00);
+    out.push(0x00);              // no Local Color Table, not interlaced
 
-    // LZW Image Data
-    const lzwMinCodeSize = colorDepth;
-    out.push(lzwMinCodeSize);
-    const lzwData = _lzwEncode(indexed, lzwMinCodeSize);
-    for (let off = 0; off < lzwData.length;) {
-      const blockLen = Math.min(255, lzwData.length - off);
+    // LZW image data
+    const minCodeSize = colorDepth;
+    out.push(minCodeSize);
+    const lzw = _lzwEncode(indexed, minCodeSize);
+    for (let off = 0; off < lzw.length;) {
+      const blockLen = Math.min(255, lzw.length - off);
       out.push(blockLen);
-      for (let i = 0; i < blockLen; i++) out.push(lzwData[off++]);
+      for (let k = 0; k < blockLen; k++) out.push(lzw[off++]);
     }
-    out.push(0x00);
+    out.push(0x00); // image data block terminator
   }
 
-  // GIF Trailer
+  // Trailer
   out.push(0x3B);
 
   return new Blob([new Uint8Array(out)], { type: 'image/gif' });
 }
 
-// ─── LZW encoder (GIF variant, little-endian bit packing) ────────────────────
+// ─── LZW encoder (GIF variant — little-endian variable-width bit packing) ────
+//
+// GIF uses a variant of LZW where:
+//   • The code table starts with 2^minCodeSize literal codes (one per palette
+//     index), plus clearCode (= 2^minCodeSize) and eoiCode (= clearCode + 1).
+//   • Code width starts at minCodeSize + 1 and grows as the table fills.
+//   • A clear code is emitted at the start and whenever the table reaches 4096.
+//   • Codes are packed LSB-first into bytes.
+//
+// KEY: codeSize increments when nextCode > (1 << codeSize), NOT >=.
+// The GIF decoder is always 1 table entry behind the encoder, so it increments
+// one emit later. Using > (rather than >=) keeps encoder and decoder in sync.
 
 function _lzwEncode(indices, minCodeSize) {
   const clearCode = 1 << minCodeSize;
-  const eofCode = clearCode + 1;
-
-  // Flat hash table: key encodes (prefixCode, suffixByte).
-  // HASH_SIZE must be prime; 7919 handles ~4096 codes × 256 suffixes with low collision.
-  const HASH_SIZE = 7919;
-  const htKey   = new Int32Array(HASH_SIZE).fill(-1); // -1 = empty slot
-  const htVal   = new Uint16Array(HASH_SIZE);
-
-  let codeSize = minCodeSize + 1;
-  let nextCode = eofCode + 1;
-
-  const resetTable = () => {
-    htKey.fill(-1);
-    codeSize = minCodeSize + 1;
-    nextCode = eofCode + 1;
-  };
+  const eoiCode   = clearCode + 1;
 
   const out = [];
   let bitBuf = 0, bitLen = 0;
+  let codeSize = minCodeSize + 1;
+
   const emit = (code) => {
     bitBuf |= code << bitLen;
     bitLen += codeSize;
     while (bitLen >= 8) { out.push(bitBuf & 0xFF); bitBuf >>>= 8; bitLen -= 8; }
   };
 
-  const htSearch = (key) => {
-    let slot = key % HASH_SIZE;
-    while (htKey[slot] !== -1 && htKey[slot] !== key) {
-      slot = (slot + 1) % HASH_SIZE;
-    }
-    return slot;
+  let table    = new Map();
+  let nextCode = eoiCode + 1;
+
+  const resetTable = () => {
+    table    = new Map();
+    codeSize = minCodeSize + 1;
+    nextCode = eoiCode + 1;
   };
 
   if (indices.length === 0) {
-    emit(clearCode); emit(eofCode);
+    emit(clearCode); emit(eoiCode);
     if (bitLen > 0) out.push(bitBuf & 0xFF);
     return out;
   }
@@ -238,44 +228,56 @@ function _lzwEncode(indices, minCodeSize) {
   for (let i = 1; i < indices.length; i++) {
     const suffix = indices[i];
     const key    = (prefix << 8) | suffix;
-    const slot   = htSearch(key);
+    const code   = table.get(key);
 
-    if (htKey[slot] === key) {
-      // Found: extend the current sequence
-      prefix = htVal[slot];
+    if (code !== undefined) {
+      prefix = code; // extend string
       continue;
     }
 
-    // Not found: emit prefix, add new entry
     emit(prefix);
+
     if (nextCode <= 4095) {
-      htKey[slot] = key;
-      htVal[slot] = nextCode++;
-      if (nextCode >= (1 << codeSize) && codeSize < 12) codeSize++;
+      table.set(key, nextCode++);
+      if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
     } else {
       emit(clearCode);
       resetTable();
     }
+
     prefix = suffix;
   }
 
   emit(prefix);
-  emit(eofCode);
+  emit(eoiCode);
   if (bitLen > 0) out.push(bitBuf & 0xFF);
   return out;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+/** Download a Blob by creating a temporary <a> element and clicking it. */
+function _triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Euclidean nearest-color fallback for pixels whose exact RGB is not in colorMap. */
 function _nearestColor(r, g, b, palette) {
   let best = 0, bestDist = Infinity;
-  const n = palette.length / 3;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < palette.length / 3; i++) {
     const dr = r - palette[i * 3], dg = g - palette[i * 3 + 1], db = b - palette[i * 3 + 2];
-    const d = dr * dr + dg * dg + db * db;
+    const d  = dr * dr + dg * dg + db * db;
     if (d < bestDist) { bestDist = d; best = i; }
   }
   return best;
 }
 
+/** Write a 16-bit little-endian integer into an output array. */
 function _u16(out, v) { out.push(v & 0xFF, (v >> 8) & 0xFF); }

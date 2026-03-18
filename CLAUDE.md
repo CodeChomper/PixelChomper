@@ -25,7 +25,7 @@ Then open `http://localhost:8080`
 | 2.1 | COMPLETE | Help dialog (keyboard shortcuts reference, F1 / Help menu) |
 | 3 | COMPLETE | Color system (HSV wheel, palette presets, shading ink, recent colors) |
 | 4 | COMPLETE | Layers (multi-layer, opacity, blend modes, drag reorder) |
-| 5 | COMPLETE | File I/O & undo/redo (PNG/GIF export, project save/load, history) |
+| 5 | COMPLETE | File I/O & undo/redo (PNG/GIF export, project save/load, history) Animated GIF Export Not Working |
 | 6 | COMPLETE | Animation & timeline (frames, onion skinning, playback, frame tags) |
 | 7 | NOT STARTED | Advanced features (symmetry, tiled mode, canvas resize, custom brushes) |
 

@@ -64,7 +64,7 @@ PixelChomper/
 │   │   └── DragDrop.js         # Drag-and-drop utility for layer/frame reorder
 │   └── io/
 │       ├── ExportPNG.js        # Single frame → PNG via canvas.toBlob
-│       ├── ExportGIF.js        # Animated GIF export (using a small bundled GIF encoder)
+│       ├── ExportGIF.js        # Animated GIF export
 │       ├── ExportSpriteSheet.js# Sprite sheet PNG + JSON metadata
 │       ├── ImportSpriteSheet.js# Import sprite sheet → frames
 │       └── ProjectFile.js      # Save/load .pixelchomper JSON project files
@@ -259,7 +259,7 @@ PixelChomper/
 ### Features
 - **Undo/Redo** (Ctrl+Z / Ctrl+Shift+Z) — snapshot-based history. Before each tool stroke, snapshot affected layer's ImageData. Undo restores it. Configurable max history depth (default 50).
 - **Export PNG** — current frame, all visible layers composited → PNG download via `canvas.toBlob()`
-- **Export GIF** — animated GIF from all frames (uses a bundled minimal GIF encoder — we'll include a small `gif.js` library as a vendored file, or implement a basic LZW GIF encoder)
+- **Export GIF** — animated GIF from all frames
 - **Export Sprite Sheet** — all frames laid out in a grid → single PNG + JSON metadata file (frame positions, dimensions, tags)
 - **Import Sprite Sheet** — load a PNG + specify frame dimensions → split into frames
 - **Save Project** (.pixelchomper) — serialize full state to JSON: sprite dimensions, layers (pixel data as base64-encoded PNGs), frames, palette, tags. Download as `.pixelchomper` file.
@@ -269,7 +269,7 @@ PixelChomper/
 ### Files Created / Modified
 - `src/core/History.js` — undo/redo stack. Methods: `pushSnapshot(layerIndex, imageData)`, `undo()`, `redo()`. Each entry stores `{layerIndex, imageData, selectionMask}`.
 - `src/io/ExportPNG.js` — composite visible layers → PNG blob → download
-- `src/io/ExportGIF.js` — iterate frames, composite each, encode as GIF. Vendor a small GIF encoder (`src/vendor/gif-encoder.js`) or implement basic GIF89a with LZW.
+- `src/io/ExportGIF.js` — iterate frames, composite each, encode as GIF.
 - `src/io/ExportSpriteSheet.js` — arrange frames in grid, export PNG + JSON
 - `src/io/ImportSpriteSheet.js` — load image, slice into frames by grid dimensions
 - `src/io/ProjectFile.js` — serialize/deserialize project state. Layer pixel data stored as base64 data URLs from `canvas.toDataURL('image/png')`.
@@ -280,7 +280,7 @@ PixelChomper/
 
 ### Architecture Notes
 - History uses a simple snapshot approach: before a tool stroke begins, clone the affected layer's `ImageData` (via `getImageData`). On undo, `putImageData` restores it. This is memory-heavy but simple and reliable for small pixel-art canvases (64×64 @ 4 bytes/pixel = 16KB per snapshot).
-- For GIF export, we need LZW compression. Options: (a) vendor a small MIT-licensed GIF encoder like `gif.js`, or (b) write a minimal GIF89a encoder (~200 lines). We'll use option (b) for zero-dependency purity unless it proves too complex, in which case we vendor.
+- For GIF export, we need LZW compression.
 - Project files are JSON with embedded base64 PNG data for each cel. Reasonable size for pixel art.
 
 ### Verification
