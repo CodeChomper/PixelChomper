@@ -7,21 +7,49 @@ export class EraserTool extends Tool {
   constructor() {
     super('eraser', 'Eraser', 'E');
     this._lastPos = null;
+    this._lastCommittedPos = null; // persists between strokes for shift+click line erase
+    this._lineMode = false;
+    this._lineStart = null;
   }
 
   onPointerDown(pos, event, state) {
-    this._lastPos = pos;
-    this._erase(pos, pos, state);
+    if (event.shiftKey && this._lastCommittedPos) {
+      this._lineMode = true;
+      this._lineStart = { ...this._lastCommittedPos };
+      this._updateLinePreview(this._lineStart, pos, state);
+    } else {
+      this._lineMode = false;
+      this._lastPos = pos;
+      this._erase(pos, pos, state);
+    }
   }
 
   onPointerMove(pos, event, state) {
+    if (this._lineMode) {
+      this._updateLinePreview(this._lineStart, pos, state);
+      return;
+    }
     if (!this._lastPos) return;
     this._erase(this._lastPos, pos, state);
     this._lastPos = pos;
   }
 
   onPointerUp(pos, event, state) {
+    if (this._lineMode) {
+      state.setPreviewPixels(null);
+      this._erase(this._lineStart, pos, state);
+      this._lineMode = false;
+      this._lineStart = null;
+    }
+    this._lastCommittedPos = { ...pos };
     this._lastPos = null;
+  }
+
+  _updateLinePreview(from, to, state) {
+    const color = { r: 255, g: 80, b: 80, a: 120 };
+    const points = bresenhamLine(from.x, from.y, to.x, to.y);
+    const pixels = points.flatMap(p => stampBrush(p.x, p.y, color, state.brushSize, state.brushShape));
+    state.setPreviewPixels(pixels);
   }
 
   _erase(from, to, state) {

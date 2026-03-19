@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { midpointEllipse, filledEllipse } from '../canvas/PixelUtils.js';
+import { midpointEllipse, filledEllipse, constrainToSquare } from '../canvas/PixelUtils.js';
 
 export class EllipseTool extends Tool {
   constructor() {
@@ -15,14 +15,16 @@ export class EllipseTool extends Tool {
 
   onPointerMove(pos, event, state) {
     if (!this._start) return;
-    this._updatePreview(this._start, pos, state);
+    const end = event.shiftKey ? constrainToSquare(this._start, pos) : pos;
+    this._updatePreview(this._start, end, state);
   }
 
   onPointerUp(pos, event, state) {
     if (!this._start) return;
+    const end = event.shiftKey ? constrainToSquare(this._start, pos) : pos;
     const color = this._btn === 2 ? state.bgColor : state.fgColor;
     state.pushRecentColor(color);
-    const { cx, cy, rx, ry } = this._getBounds(this._start, pos);
+    const { cx, cy, rx, ry } = this._getBounds(this._start, end);
     const pts = state.shapeMode === 'filled' ? filledEllipse(cx, cy, rx, ry) : midpointEllipse(cx, cy, rx, ry);
     const pixels = pts.map(p => ({ x: p.x, y: p.y, color }));
     state.setPreviewPixels(null);

@@ -7,16 +7,33 @@ export class PencilTool extends Tool {
     super('pencil', 'Pencil', 'P');
     this._lastPos = null;
     this._strokeColor = null;
+    this._lastCommittedPos = null; // persists between strokes for shift+click line
+    this._lineMode = false;
+    this._lineStart = null;
   }
 
   onPointerDown(pos, event, state) {
-    this._lastPos = pos;
     const color = event.button === 2 ? state.bgColor : state.fgColor;
     this._strokeColor = color;
-    this._draw(pos, pos, color, state, event.button === 2);
+
+    if (event.shiftKey && this._lastCommittedPos) {
+      // Shift+click: preview a line from the last committed position
+      this._lineMode = true;
+      this._lineStart = { ...this._lastCommittedPos };
+      this._updateLinePreview(this._lineStart, pos, color, state);
+    } else {
+      this._lineMode = false;
+      this._lastPos = pos;
+      this._draw(pos, pos, color, state, event.button === 2);
+    }
   }
 
   onPointerMove(pos, event, state) {
+    if (this._lineMode) {
+      const color = !!(event.buttons & 2) ? state.bgColor : state.fgColor;
+      this._updateLinePreview(this._lineStart, pos, color, state);
+      return;
+    }
     if (!this._lastPos) return;
     const rightBtn = !!(event.buttons & 2);
     const color = rightBtn ? state.bgColor : state.fgColor;
@@ -25,11 +42,28 @@ export class PencilTool extends Tool {
   }
 
   onPointerUp(pos, event, state) {
-    if (this._strokeColor && !state.shadingInk) {
+    if (this._lineMode) {
+      const isRight = event.button === 2;
+      const color = isRight ? state.bgColor : state.fgColor;
+      state.setPreviewPixels(null);
+      this._draw(this._lineStart, pos, color, state, isRight);
+      if (!state.shadingInk) state.pushRecentColor(color);
+      this._lineMode = false;
+      this._lineStart = null;
+    } else if (this._strokeColor && !state.shadingInk) {
       state.pushRecentColor(this._strokeColor);
     }
+    this._lastCommittedPos = { ...pos };
     this._lastPos = null;
     this._strokeColor = null;
+  }
+
+  _updateLinePreview(from, to, color, state) {
+    const previewColor = { ...color, a: 180 };
+    const rawLine = bresenhamLine(from.x, from.y, to.x, to.y);
+    const line = state.pixelPerfect ? pixelPerfectFilter(rawLine) : rawLine;
+    const pixels = line.flatMap(p => stampBrush(p.x, p.y, previewColor, state.brushSize, state.brushShape));
+    state.setPreviewPixels(pixels);
   }
 
   _draw(from, to, color, state, isRightButton) {

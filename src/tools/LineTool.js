@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { bresenhamLine, stampBrush, pixelPerfectFilter } from '../canvas/PixelUtils.js';
+import { bresenhamLine, stampBrush, pixelPerfectFilter, constrainToAngle } from '../canvas/PixelUtils.js';
 
 export class LineTool extends Tool {
   constructor() {
@@ -15,14 +15,16 @@ export class LineTool extends Tool {
 
   onPointerMove(pos, event, state) {
     if (!this._start) return;
-    this._updatePreview(this._start, pos, state);
+    const end = event.shiftKey ? constrainToAngle(this._start, pos) : pos;
+    this._updatePreview(this._start, end, state);
   }
 
   onPointerUp(pos, event, state) {
     if (!this._start) return;
+    const end = event.shiftKey ? constrainToAngle(this._start, pos) : pos;
     const color = this._btn === 2 ? state.bgColor : state.fgColor;
     state.pushRecentColor(color);
-    let line = bresenhamLine(this._start.x, this._start.y, pos.x, pos.y);
+    let line = bresenhamLine(this._start.x, this._start.y, end.x, end.y);
     if (state.pixelPerfect) line = pixelPerfectFilter(line);
     const pixels = line.flatMap(p => stampBrush(p.x, p.y, color, state.brushSize, state.brushShape));
     state.setPreviewPixels(null);

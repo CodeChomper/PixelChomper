@@ -1,4 +1,5 @@
 import { Tool } from './Tool.js';
+import { constrainToSquare } from '../canvas/PixelUtils.js';
 
 export class SelectRectTool extends Tool {
   constructor() {
@@ -13,16 +14,18 @@ export class SelectRectTool extends Tool {
 
   onPointerMove(pos, event, state) {
     if (!this._start) return;
-    this._updatePreview(this._start, pos, state);
+    const end = event.shiftKey ? constrainToSquare(this._start, pos) : pos;
+    this._updatePreview(this._start, end, state);
   }
 
   onPointerUp(pos, event, state) {
     if (!this._start) return;
     if (!state.sprite) { this._start = null; return; }
-    const x0 = Math.max(0, Math.min(this._start.x, pos.x));
-    const y0 = Math.max(0, Math.min(this._start.y, pos.y));
-    const x1 = Math.min(state.sprite.width - 1, Math.max(this._start.x, pos.x));
-    const y1 = Math.min(state.sprite.height - 1, Math.max(this._start.y, pos.y));
+    const constrained = event.shiftKey ? constrainToSquare(this._start, pos) : pos;
+    const x0 = Math.max(0, Math.min(this._start.x, constrained.x));
+    const y0 = Math.max(0, Math.min(this._start.y, constrained.y));
+    const x1 = Math.min(state.sprite.width - 1, Math.max(this._start.x, constrained.x));
+    const y1 = Math.min(state.sprite.height - 1, Math.max(this._start.y, constrained.y));
 
     const w = state.sprite.width, h = state.sprite.height;
     const mask = new Uint8Array(w * h);

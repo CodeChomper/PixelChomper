@@ -298,3 +298,27 @@ export function polygonPixels(vertices, filled) {
   }
   return pts;
 }
+
+/** Constrain an end point to form a perfect square from start (for Rect/Ellipse/SelectRect + Shift). */
+export function constrainToSquare(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const size = Math.max(Math.abs(dx), Math.abs(dy));
+  return {
+    x: start.x + (dx >= 0 ? size : -size),
+    y: start.y + (dy >= 0 ? size : -size),
+  };
+}
+
+/** Constrain an end point to the nearest 45° angle from start (for Line + Shift). */
+export function constrainToAngle(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const angle = Math.atan2(dy, dx);
+  const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  const dist = Math.hypot(dx, dy);
+  return {
+    x: Math.round(start.x + dist * Math.cos(snapped)),
+    y: Math.round(start.y + dist * Math.sin(snapped)),
+  };
+}

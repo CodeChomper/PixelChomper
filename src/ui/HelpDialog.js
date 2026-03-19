@@ -67,6 +67,17 @@ export class HelpDialog {
             </tbody>
           </table>
           <table class="help-table">
+            <caption>Shift Modifiers (while drawing)</caption>
+            <thead><tr><th>Tool</th><th>Shift behavior</th></tr></thead>
+            <tbody>
+              <tr><td>Pencil / Eraser</td><td>Shift+click: line from last point</td></tr>
+              <tr><td>Line</td><td>Constrain to 45° angles</td></tr>
+              <tr><td>Rectangle</td><td>Constrain to square</td></tr>
+              <tr><td>Ellipse</td><td>Constrain to circle</td></tr>
+              <tr><td>Select Rect</td><td>Constrain to square</td></tr>
+            </tbody>
+          </table>
+          <table class="help-table">
             <caption>Multi-click Tools (Curve, Polygon)</caption>
             <thead><tr><th>Action</th><th>Shortcut</th></tr></thead>
             <tbody>
