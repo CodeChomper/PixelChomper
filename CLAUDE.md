@@ -27,7 +27,7 @@ Then open `http://localhost:8080`
 | 4 | COMPLETE | Layers (multi-layer, opacity, blend modes, drag reorder) |
 | 5 | COMPLETE | File I/O & undo/redo (PNG/GIF export, project save/load, history) Animated GIF Export Not Working |
 | 6 | COMPLETE | Animation & timeline (frames, onion skinning, playback, frame tags) |
-| 7 | NOT STARTED | Advanced features (symmetry, tiled mode, canvas resize, custom brushes) |
+| 7 | COMPLETE | Advanced features (symmetry, tiled mode, canvas resize, custom brushes, contour, replace color, layer groups, linked cels, shortcut editor, preferences, context menus, panel resizing, touch support) |
 
 See `PLAN.md` for full implementation details per stage.
 

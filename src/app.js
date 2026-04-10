@@ -16,6 +16,8 @@ import { SelectRectTool } from './tools/SelectRectTool.js';
 import { SelectLassoTool } from './tools/SelectLassoTool.js';
 import { MagicWandTool } from './tools/MagicWandTool.js';
 import { MoveTool } from './tools/MoveTool.js';
+import { ReplaceColorTool } from './tools/ReplaceColorTool.js';
+import { ContourTool } from './tools/ContourTool.js';
 import { MenuBar } from './ui/MenuBar.js';
 import { Toolbar } from './ui/Toolbar.js';
 import { ToolOptions } from './ui/ToolOptions.js';
@@ -25,6 +27,9 @@ import { LayerPanel } from './ui/LayerPanel.js';
 import { Timeline } from './ui/Timeline.js';
 import { Dialog } from './ui/Dialog.js';
 import { HelpDialog } from './ui/HelpDialog.js';
+import { ShortcutEditor } from './ui/ShortcutEditor.js';
+import { ResizeCanvasDialog } from './ui/ResizeCanvasDialog.js';
+import { PrefsDialog } from './ui/PrefsDialog.js';
 import { clamp, MIN_ZOOM, MAX_ZOOM } from './core/Constants.js';
 import { ExportPNG } from './io/ExportPNG.js';
 import { ExportGIF } from './io/ExportGIF.js';
@@ -77,6 +82,8 @@ class App {
     this.toolManager.register(new SelectLassoTool());
     this.toolManager.register(new MagicWandTool());
     this.toolManager.register(new MoveTool());
+    this.toolManager.register(new ReplaceColorTool());
+    this.toolManager.register(new ContourTool());
 
     // UI
     this.menuBar = new MenuBar(this.state, document.getElementById('menubar'));
@@ -156,6 +163,36 @@ class App {
 
     // Help
     this.state.events.on('help:shortcuts', () => HelpDialog.show());
+    this.state.events.on('help:edit-shortcuts', () => ShortcutEditor.show(this.state));
+
+    // Stage 7: View menu
+    this.state.events.on('view:symmetry-h', () => {
+      this.state.setSymmetry(!this.state.symmetry.horizontal, this.state.symmetry.vertical);
+    });
+    this.state.events.on('view:symmetry-v', () => {
+      this.state.setSymmetry(this.state.symmetry.horizontal, !this.state.symmetry.vertical);
+    });
+    this.state.events.on('view:tiled-mode', () => {
+      this.state.setTiledMode(!this.state.tiledMode);
+    });
+    // Stage 7: Edit menu — brush and canvas
+    this.state.events.on('edit:define-brush', () => {
+      this.state.defineCustomBrush();
+    });
+    this.state.events.on('edit:clear-brush', () => {
+      this.state.clearCustomBrush();
+    });
+    this.state.events.on('canvas:resize', () => this._showResizeCanvasDialog());
+    this.state.events.on('canvas:crop-to-selection', () => {
+      if (!this.state.selection) {
+        alert('No selection to crop to.');
+        return;
+      }
+      this.state.cropToSelection();
+    });
+
+    // Stage 7: Preferences
+    this.state.events.on('file:preferences', () => PrefsDialog.show(this.state));
 
     // Show new sprite dialog on launch
     this._showNewSpriteDialog();
@@ -258,12 +295,21 @@ class App {
     this.state.setSprite(sprite);
     this._fitToScreen();
   }
+
+  async _showResizeCanvasDialog() {
+    if (!this.state.sprite) return;
+    const result = await ResizeCanvasDialog.show(this.state.sprite.width, this.state.sprite.height);
+    if (!result) return;
+    this.state.resizeCanvas(result.width, result.height, result.anchorX, result.anchorY);
+    this._fitToScreen();
+  }
 }
 
 // Boot
 window.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
   _initTimelineResizer();
+  _initPanelResizer();
 });
 
 function _initTimelineResizer() {
@@ -296,6 +342,46 @@ function _initTimelineResizer() {
       resizer.classList.remove('dragging');
       const finalHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-height'), 10);
       localStorage.setItem(LS_KEY, finalHeight);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function _initPanelResizer() {
+  const resizer = document.getElementById('panel-resizer');
+  if (!resizer) return;
+  const MIN_WIDTH = 160;
+  const MAX_WIDTH = 400;
+  const LS_KEY = 'pixelchomper:panel-width';
+
+  const saved = parseInt(localStorage.getItem(LS_KEY), 10);
+  if (saved && saved >= MIN_WIDTH && saved <= MAX_WIDTH) {
+    document.documentElement.style.setProperty('--panel-width', saved + 'px');
+  }
+
+  let startX = 0;
+  let startWidth = 0;
+
+  resizer.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--panel-width'), 10);
+    resizer.classList.add('dragging');
+
+    const onMove = e => {
+      const delta = startX - e.clientX;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+      document.documentElement.style.setProperty('--panel-width', newWidth + 'px');
+    };
+
+    const onUp = () => {
+      resizer.classList.remove('dragging');
+      const finalWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--panel-width'), 10);
+      localStorage.setItem(LS_KEY, finalWidth);
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };

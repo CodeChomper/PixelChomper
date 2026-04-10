@@ -355,8 +355,6 @@ PixelChomper/
 - **Custom brushes** — select a region → "define as brush". Use that pattern instead of square/circle.
 - **Contour tool** (D) — draw outline of filled region
 - **Replace color** — Eraser variant: replace FG color with BG color on the canvas
-- **Indexed color mode** — limit sprite to a fixed palette; color picker snaps to nearest palette color
-- **Layer groups** — folders that contain multiple layers, collapse/expand in layer panel
 - **Linked cels UI** — visual indicator for linked cels in timeline, link/unlink commands
 - **Keyboard shortcut customization** — modal showing all shortcuts, editable, saved to localStorage
 - **Preferences** — grid color, checker size, theme tweaks, auto-save toggle, stored in localStorage
@@ -368,9 +366,6 @@ PixelChomper/
 - Modify: `src/canvas/CanvasRenderer.js` — symmetry axis rendering, tiled mode
 - Modify: `src/canvas/CanvasInput.js` — symmetry mirroring dispatch, tiled coordinate wrapping
 - Modify: `src/tools/PencilTool.js` (and other tools) — symmetry support
-- Modify: `src/model/Layer.js` — layer group support (parent/children)
-- Modify: `src/ui/LayerPanel.js` — collapsible groups
-- Modify: `src/ui/Timeline.js` — linked cel indicators, layer groups in rows
 - Modify: `src/ui/Dialog.js` — resize canvas dialog, preferences dialog, shortcut editor
 - Modify: `src/core/State.js` — preferences, key bindings
 - Modify: `src/core/Constants.js` — default keybinding map
@@ -381,8 +376,66 @@ PixelChomper/
 - Tiled mode wraps drawing and shows tiled preview
 - Canvas resize preserves existing pixel data at correct anchor
 - Custom brush paints with the defined pattern
-- Layer groups collapse/expand and composite correctly
 - Preferences persist across browser sessions via localStorage
+
+---
+
+## Stage 8: Virtual Gallery
+
+**Goal**: Let users share their pixel art (PNG or animated GIF) to a community gallery powered by PocketBase, browsable via a standalone `gallery.html` page.
+
+### PocketBase Setup (manual — before coding)
+
+Create a collection named `gallery` in the PocketBase admin UI:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `title` | text | required |
+| `artist` | text | optional |
+| `image` | file | required, single file |
+| `width` | number | sprite width in pixels |
+| `height` | number | sprite height in pixels |
+| `frame_count` | number | number of frames |
+| `format` | text | `'png'` or `'gif'` |
+
+Set API rules: public `create`, public `list`/`view`. No auth required.
+
+### Features
+- **Share to Gallery** — File menu item opens a dialog (title + artist name), then uploads to PocketBase
+- **Auto format** — single-frame sprites upload as PNG; multi-frame upload as animated GIF (reuses existing `ExportGIF` encoder)
+- **Gallery page** (`gallery.html`) — standalone page: responsive CSS grid of pixel art cards, crisp `image-rendering: pixelated`, animated GIFs play automatically, lightbox on click, "Load more" pagination
+
+### Files Created / Modified
+- New: `src/core/Config.js` — `POCKETBASE_URL` and `GALLERY_COLLECTION` constants (user fills in URL)
+- New: `src/io/ShareGallery.js` — upload logic using `fetch` + `FormData` to PocketBase REST API
+- New: `gallery.html` — standalone gallery page with inline styles
+- New: `src/gallery.js` — gallery page JS: fetches records, renders grid, handles lightbox
+- Modify: `src/io/ExportGIF.js` — add `static toBlob(sprite)` method (refactored out of `download()`) so the GIF encoder can be reused without triggering a download
+- Modify: `src/ui/MenuBar.js` — add `{ label: 'Share to Gallery...', action: 'file:share-gallery' }` to File menu
+- Modify: `src/app.js` — wire `file:share-gallery` event; add `_shareToGallery()` method; import `ShareGallery`
+
+### Share Flow
+1. File → Share to Gallery...
+2. Dialog: Title (required) + Artist name (optional) → Share
+3. `ShareGallery.upload()` detects frame count → PNG blob or GIF blob
+4. POST FormData to `{POCKETBASE_URL}/api/collections/gallery/records`
+5. Success dialog; record visible in PocketBase admin
+
+### Gallery Page
+- Fetches `GET /api/collections/gallery/records?sort=-created&perPage=50`
+- File URL pattern: `{POCKETBASE_URL}/api/files/{collectionId}/{recordId}/{filename}`
+- Cards show: image, title, artist, `{w}×{h}px`, "GIF" badge for animated submissions
+- Lightbox: full-screen overlay, image scaled up (pixelated)
+- Dark theme matching PixelChomper's color scheme
+
+### Verification
+- Create PocketBase collection + set public API rules
+- Set `POCKETBASE_URL` in `src/core/Config.js`
+- `python3 -m http.server 8080` → draw → File → Share to Gallery → fill form → Share
+- Verify record + image in PocketBase admin
+- Open `gallery.html` → submission appears, pixelated rendering, lightbox works
+- Test multi-frame sprite → animated GIF plays in gallery
+- Test single-frame sprite → PNG served
 
 ---
 

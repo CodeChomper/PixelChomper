@@ -9,6 +9,7 @@ export class Cel {
     this.canvas.height = height;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.linked = false; // true if this cel shares a canvas with another cel
+    this.linkedTo = null; // reference to source Cel when linked
   }
 
   get width() { return this.canvas.width; }
@@ -62,5 +63,30 @@ export class Cel {
     const copy = new Cel(this.width, this.height);
     copy.ctx.drawImage(this.canvas, 0, 0);
     return copy;
+  }
+
+  /** Link this cel to share pixel data with another cel. */
+  linkTo(sourceCel) {
+    this.linked = true;
+    this.linkedTo = sourceCel;
+    // Redirect canvas/ctx to the source
+    this.canvas = sourceCel.canvas;
+    this.ctx = sourceCel.ctx;
+  }
+
+  /** Unlink this cel — copy pixels from the source and become independent. */
+  unlink() {
+    if (!this.linked || !this.linkedTo) return;
+    const w = this.linkedTo.width;
+    const h = this.linkedTo.height;
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = w;
+    newCanvas.height = h;
+    const newCtx = newCanvas.getContext('2d', { willReadFrequently: true });
+    newCtx.drawImage(this.linkedTo.canvas, 0, 0);
+    this.canvas = newCanvas;
+    this.ctx = newCtx;
+    this.linked = false;
+    this.linkedTo = null;
   }
 }

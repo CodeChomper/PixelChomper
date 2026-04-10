@@ -31,12 +31,19 @@ export class Toolbar {
   }
 
   _getShortcut(toolId) {
-    const map = {
-      pencil: 'B', eraser: 'E', line: 'L', rect: 'U', ellipse: 'U',
-      fill: 'G', eyedropper: 'I', spray: 'B', curve: 'L', polygon: 'D',
+    // Use dynamic keybindings from state if available
+    if (this.state.keyBindings) {
+      for (const [k, t] of Object.entries(this.state.keyBindings)) {
+        if (t === toolId) return k.replace('shift+', 'S+').toUpperCase();
+      }
+    }
+    const defaults = {
+      pencil: 'B', eraser: 'E', line: 'L', rect: 'U', ellipse: 'S+U',
+      fill: 'G', eyedropper: 'I', spray: 'S+B', curve: 'S+L', polygon: 'S+D',
       select_rect: 'M', select_lasso: 'Q', magic_wand: 'W', move: 'V',
+      replace_color: 'R', contour: 'D',
     };
-    return map[toolId] || '';
+    return defaults[toolId] || '';
   }
 
   _updateActive() {

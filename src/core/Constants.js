@@ -13,6 +13,8 @@ export const TOOLS = {
   SELECT_LASSO: 'select_lasso',
   MAGIC_WAND: 'magic_wand',
   MOVE: 'move',
+  REPLACE_COLOR: 'replace_color',
+  CONTOUR: 'contour',
 };
 
 export const BRUSH_SHAPES = {
@@ -32,8 +34,8 @@ export const MAX_BRUSH_SIZE = 64;
 
 export const CHECKER_SIZE = 8;
 
-// Key bindings: map key string (with optional "shift+" prefix) to tool id
-export const KEY_BINDINGS = {
+// Default key bindings: map key string (with optional "shift+" prefix) to tool id
+export const DEFAULT_KEY_BINDINGS = {
   'b': TOOLS.PENCIL,
   'e': TOOLS.ERASER,
   'l': TOOLS.LINE,
@@ -48,7 +50,12 @@ export const KEY_BINDINGS = {
   'q': TOOLS.SELECT_LASSO,
   'w': TOOLS.MAGIC_WAND,
   'v': TOOLS.MOVE,
+  'r': TOOLS.REPLACE_COLOR,
+  'd': TOOLS.CONTOUR,
 };
+
+// Legacy alias so existing imports still work
+export const KEY_BINDINGS = DEFAULT_KEY_BINDINGS;
 
 export function colorToCSS(c) {
   if (c.a === 255) return `rgb(${c.r},${c.g},${c.b})`;

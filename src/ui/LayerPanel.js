@@ -1,3 +1,5 @@
+import { ContextMenu } from './ContextMenu.js';
+
 /**
  * Layer panel UI — displays layer list with visibility, opacity, blend mode,
  * lock, reorder, add/remove/duplicate/merge/flatten controls.
@@ -93,11 +95,11 @@ export class LayerPanel {
     const actions = document.createElement('div');
     actions.className = 'layer-actions';
 
-    const addBtn = this._makeBtn('+', 'Add layer', () => this.state.addLayer());
-    const removeBtn = this._makeBtn('−', 'Remove layer', () => this.state.removeLayer());
-    const dupBtn = this._makeBtn('⧉', 'Duplicate layer', () => this.state.duplicateLayer());
-    const mergeBtn = this._makeBtn('⤓', 'Merge down', () => this.state.mergeDown());
-    const flattenBtn = this._makeBtn('⊟', 'Flatten', () => this.state.flattenLayers());
+    const addBtn     = this._makeBtn('+', 'Add layer',       () => this.state.addLayer());
+    const removeBtn  = this._makeBtn('−', 'Remove layer',    () => this.state.removeLayer());
+    const dupBtn     = this._makeBtn('⧉', 'Duplicate layer', () => this.state.duplicateLayer());
+    const mergeBtn   = this._makeBtn('⤓', 'Merge down',      () => this.state.mergeDown());
+    const flattenBtn = this._makeBtn('⊟', 'Flatten',         () => this.state.flattenLayers());
 
     actions.appendChild(addBtn);
     actions.appendChild(removeBtn);
@@ -173,6 +175,35 @@ export class LayerPanel {
       // Click to select
       row.addEventListener('click', () => this.state.setActiveLayer(i));
 
+      // Right-click context menu
+      row.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const items = [
+          { label: 'Rename', action: 'rename' },
+          { separator: true },
+          { label: 'Add Layer', action: 'add' },
+          { label: 'Duplicate Layer', action: 'duplicate' },
+          { label: 'Delete Layer', action: 'delete' },
+          { separator: true },
+          { label: 'Merge Down', action: 'merge-down' },
+          { label: 'Flatten', action: 'flatten' },
+        ];
+        const action = await ContextMenu.show(items, e.clientX, e.clientY);
+        if (!action) return;
+        this.state.setActiveLayer(i);
+        if (action === 'add') this.state.addLayer();
+        else if (action === 'duplicate') this.state.duplicateLayer();
+        else if (action === 'delete') this.state.removeLayer();
+        else if (action === 'merge-down') this.state.mergeDown();
+        else if (action === 'flatten') this.state.flattenLayers();
+        else if (action === 'rename') {
+          const liveRow = this._listEl.querySelector(`[data-index="${i}"]`);
+          const nameEl = liveRow && liveRow.querySelector('.layer-name');
+          if (nameEl) nameEl.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        }
+      });
+
       // Visibility eye
       const eyeBtn = document.createElement('button');
       eyeBtn.className = 'layer-eye-btn' + (layer.visible ? '' : ' hidden');
@@ -189,6 +220,9 @@ export class LayerPanel {
       thumb.width = 24;
       thumb.height = 24;
       this._drawThumbnail(thumb, i);
+
+      row.appendChild(eyeBtn);
+      row.appendChild(thumb);
 
       // Name (double-click to rename)
       const nameEl = document.createElement('span');
@@ -212,6 +246,7 @@ export class LayerPanel {
           if (ke.key === 'Escape') { input.value = layer.name; input.blur(); }
         });
       });
+      row.appendChild(nameEl);
 
       // Lock button
       const lockBtn = document.createElement('button');
@@ -222,11 +257,8 @@ export class LayerPanel {
         e.stopPropagation();
         this.state.setLayerLocked(i, !layer.locked);
       });
-
-      row.appendChild(eyeBtn);
-      row.appendChild(thumb);
-      row.appendChild(nameEl);
       row.appendChild(lockBtn);
+
       this._listEl.appendChild(row);
     }
   }
@@ -249,13 +281,11 @@ export class LayerPanel {
 
   _updateThumbnails() {
     if (!this.state.sprite) return;
-    const thumbs = this._listEl.querySelectorAll('.layer-thumbnail');
-    const layers = this.state.sprite.layers;
-    // Thumbnails are rendered top-to-bottom (reverse order)
-    let idx = layers.length - 1;
-    for (const thumb of thumbs) {
-      if (idx >= 0) this._drawThumbnail(thumb, idx);
-      idx--;
+    const rows = this._listEl.querySelectorAll('.layer-row');
+    for (const row of rows) {
+      const idx = parseInt(row.dataset.index);
+      const thumb = row.querySelector('.layer-thumbnail');
+      if (thumb && !isNaN(idx)) this._drawThumbnail(thumb, idx);
     }
   }
 }

@@ -43,6 +43,9 @@ export class CanvasRenderer {
     this.state.events.on('layer:reordered', rerender);
     this.state.events.on('frame:changed', rerender);
     this.state.events.on('onionskin:changed', rerender);
+    this.state.events.on('symmetry:changed', rerender);
+    this.state.events.on('view:tiled-changed', rerender);
+    this.state.events.on('prefs:changed', () => { this._checkerPattern = null; this.render(); });
 
     this._animateSelection();
   }
@@ -67,7 +70,7 @@ export class CanvasRenderer {
 
   _getCheckerPattern() {
     if (this._checkerPattern) return this._checkerPattern;
-    const size = CHECKER_SIZE;
+    const size = (this.state.preferences && this.state.preferences.checkerSize) || CHECKER_SIZE;
     const c = document.createElement('canvas');
     c.width = size * 2;
     c.height = size * 2;
@@ -169,9 +172,15 @@ export class CanvasRenderer {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
 
+    // Tiled mode preview (8 surrounding tiles)
+    if (this.state.tiledMode) {
+      this._drawTiledPreview(ctx, sprite, fi, ox, oy, sw, sh);
+    }
+
     // Grid
     if (this.state.showGrid && zoom >= 4) {
-      this._drawGrid(ctx, ox, oy, sw, sh, zoom, sprite.width, sprite.height);
+      const gridColor = (this.state.preferences && this.state.preferences.gridColor) || 'rgba(255,255,255,0.15)';
+      this._drawGrid(ctx, ox, oy, sw, sh, zoom, sprite.width, sprite.height, gridColor);
     }
 
     // Sprite border
@@ -189,8 +198,13 @@ export class CanvasRenderer {
       this._drawSelection(ctx, ox, oy, zoom);
     }
 
+    // Symmetry axes
+    if (this.state.symmetry && (this.state.symmetry.horizontal || this.state.symmetry.vertical)) {
+      this._drawSymmetryAxes(ctx, ox, oy, sw, sh);
+    }
+
     // Brush cursor / pixel highlight
-    const brushTools = ['pencil', 'eraser', 'spray'];
+    const brushTools = ['pencil', 'eraser', 'spray', 'replace_color'];
     if (this._cursorPos && !this.state.isPanning) {
       if (brushTools.includes(this.state.activeTool)) {
         this._drawBrushCursor(ctx, ox, oy, zoom);
@@ -335,8 +349,8 @@ export class CanvasRenderer {
     ctx.stroke();
   }
 
-  _drawGrid(ctx, ox, oy, sw, sh, zoom, cols, rows) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  _drawGrid(ctx, ox, oy, sw, sh, zoom, cols, rows, gridColor = 'rgba(255,255,255,0.1)') {
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0; x <= cols; x++) {
@@ -350,5 +364,55 @@ export class CanvasRenderer {
       ctx.lineTo(ox + sw, py + 0.5);
     }
     ctx.stroke();
+  }
+
+  _drawSymmetryAxes(ctx, ox, oy, sw, sh) {
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(100,180,255,0.75)';
+    ctx.lineWidth = 1;
+    if (this.state.symmetry.horizontal) {
+      const midY = oy + sh / 2;
+      ctx.beginPath();
+      ctx.moveTo(ox, midY + 0.5);
+      ctx.lineTo(ox + sw, midY + 0.5);
+      ctx.stroke();
+    }
+    if (this.state.symmetry.vertical) {
+      const midX = ox + sw / 2;
+      ctx.beginPath();
+      ctx.moveTo(midX + 0.5, oy);
+      ctx.lineTo(midX + 0.5, oy + sh);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  _drawTiledPreview(ctx, sprite, frameIndex, ox, oy, sw, sh) {
+    // Composite the current frame into a temporary canvas
+    const tmp = document.createElement('canvas');
+    tmp.width = sprite.width;
+    tmp.height = sprite.height;
+    const tctx = tmp.getContext('2d');
+    for (let li = 0; li < sprite.layers.length; li++) {
+      const layer = sprite.layers[li];
+      if (!layer.visible) continue;
+      const cel = sprite.cels[li]?.[frameIndex];
+      if (!cel) continue;
+      tctx.globalAlpha = layer.opacity / 100;
+      tctx.globalCompositeOperation = layer.blendMode;
+      tctx.drawImage(cel.canvas, 0, 0);
+    }
+    tctx.globalAlpha = 1;
+    tctx.globalCompositeOperation = 'source-over';
+
+    ctx.globalAlpha = 0.35;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        ctx.drawImage(tmp, ox + dx * sw, oy + dy * sh, sw, sh);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 }

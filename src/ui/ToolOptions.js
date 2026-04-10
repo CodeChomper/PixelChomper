@@ -10,6 +10,7 @@ export class ToolOptions {
 
     this._build();
     this.state.events.on('tool:changed', () => this._build());
+    this.state.events.on('brush:custom-changed', () => this._build());
     this.state.events.on('brush:size-changed', () => this._updateValues());
     this.state.events.on('brush:shape-changed', () => this._updateValues());
     this.state.events.on('pixelperfect:changed', () => this._updateValues());
@@ -24,8 +25,13 @@ export class ToolOptions {
     this.container.innerHTML = '';
     const toolId = this.state.activeTool;
 
-    if (toolId === 'pencil' || toolId === 'eraser') {
+    if (toolId === 'pencil' || toolId === 'eraser' || toolId === 'replace_color') {
       this._addBrushSizeOptions();
+    }
+
+    // Custom brush indicator
+    if ((toolId === 'pencil' || toolId === 'eraser') && this.state.customBrush) {
+      this._addCustomBrushIndicator();
     }
 
     if (toolId === 'pencil') {
@@ -136,6 +142,21 @@ export class ToolOptions {
     cb.addEventListener('change', () => this.state.setFillContiguous(cb.checked));
     contLabel.appendChild(cb); contLabel.append(' Contiguous');
     this.container.appendChild(contLabel);
+  }
+
+  _addCustomBrushIndicator() {
+    const wrap = document.createElement('div');
+    wrap.className = 'custom-brush-indicator';
+    const label = document.createElement('span');
+    label.textContent = '✓ Custom Brush';
+    label.className = 'custom-brush-label';
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear';
+    clearBtn.className = 'btn btn-small';
+    clearBtn.addEventListener('click', () => this.state.clearCustomBrush());
+    wrap.appendChild(label);
+    wrap.appendChild(clearBtn);
+    this.container.appendChild(wrap);
   }
 
   _addSprayOptions() {

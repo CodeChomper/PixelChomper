@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { bresenhamLine, stampBrush } from '../canvas/PixelUtils.js';
+import { bresenhamLine, stampBrush, stampCustomBrush } from '../canvas/PixelUtils.js';
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, a: 0 };
 
@@ -61,7 +61,9 @@ export class EraserTool extends Tool {
     const seen = new Set();
 
     for (const p of points) {
-      const stamps = stampBrush(p.x, p.y, TRANSPARENT, state.brushSize, state.brushShape);
+      const stamps = state.customBrush
+        ? stampCustomBrush(p.x, p.y, state.customBrush, TRANSPARENT)
+        : stampBrush(p.x, p.y, TRANSPARENT, state.brushSize, state.brushShape);
       for (const s of stamps) {
         const key = `${s.x},${s.y}`;
         if (seen.has(key)) continue;

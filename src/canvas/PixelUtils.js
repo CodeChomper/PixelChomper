@@ -54,6 +54,22 @@ export function stampBrush(cx, cy, color, brushSize, brushShape) {
 }
 
 /**
+ * Stamp a custom brush pattern at (cx, cy), returning pixel objects.
+ * The brush offsets contain {dx, dy, color}. The color from the brush
+ * pattern is used as-is (preserving the sampled colors).
+ */
+export function stampCustomBrush(cx, cy, brush, fgColor) {
+  return brush.offsets.map(({ dx, dy, color }) => ({
+    x: cx + dx,
+    y: cy + dy,
+    // Use brush pixel's alpha but override with FG color's RGB for a colorized stamp
+    color: fgColor
+      ? { r: fgColor.r, g: fgColor.g, b: fgColor.b, a: color.a }
+      : color,
+  }));
+}
+
+/**
  * Midpoint ellipse algorithm. Returns array of {x, y} border pixels.
  * cx, cy = center; rx, ry = radii
  */

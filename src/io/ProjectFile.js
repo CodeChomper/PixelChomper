@@ -110,9 +110,9 @@ async function _deserialize(project) {
   // Build layers and cels
   for (const ld of project.layers) {
     const layer = new Layer(ld.name);
-    layer.visible  = ld.visible  ?? true;
-    layer.locked   = ld.locked   ?? false;
-    layer.opacity  = ld.opacity  ?? 100;
+    layer.visible   = ld.visible   ?? true;
+    layer.locked    = ld.locked    ?? false;
+    layer.opacity   = ld.opacity   ?? 100;
     layer.blendMode = ld.blendMode ?? 'source-over';
     sprite.layers.push(layer);
 

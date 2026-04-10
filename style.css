@@ -53,14 +53,14 @@ html, body {
   width: 100%;
   height: 100%;
   grid-template-rows: var(--menubar-height) var(--tooloptions-height) 1fr 5px var(--timeline-height) var(--statusbar-height);
-  grid-template-columns: var(--toolbar-width) 1fr var(--panel-width);
+  grid-template-columns: var(--toolbar-width) 1fr 4px var(--panel-width);
   grid-template-areas:
-    "menubar   menubar      menubar"
-    "toolbar   tooloptions  panel"
-    "toolbar   canvas       panel"
-    "toolbar   resizer      panel"
-    "toolbar   timeline     panel"
-    "statusbar statusbar    statusbar";
+    "menubar   menubar        menubar        menubar"
+    "toolbar   tooloptions    panel-resizer  panel"
+    "toolbar   canvas         panel-resizer  panel"
+    "toolbar   resizer        panel-resizer  panel"
+    "toolbar   timeline       panel-resizer  panel"
+    "statusbar statusbar      statusbar      statusbar";
 }
 
 #timeline-resizer {
@@ -1057,4 +1057,324 @@ html, body {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   border-radius: 1px;
+}
+
+/* ── Stage 7 styles ───────────────────────────────────────────────── */
+
+/* Context Menu */
+.context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 10000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  font-size: var(--font-size);
+}
+
+.context-menu-item {
+  padding: 5px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.context-menu-item.disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.context-menu-shortcut {
+  color: var(--text-muted);
+  margin-left: 16px;
+  font-size: 10px;
+}
+
+.context-menu-item:hover .context-menu-shortcut {
+  color: rgba(255,255,255,0.6);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 8px;
+}
+
+/* Shortcut Editor Dialog */
+.shortcut-editor-dialog {
+  width: 640px;
+  max-width: 96vw;
+  max-height: 80vh;
+}
+
+.shortcut-editor-body {
+  overflow-y: auto;
+  max-height: calc(80vh - 100px);
+  padding: 0 4px;
+}
+
+.shortcut-editor-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.shortcut-editor-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-section-title {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size);
+}
+
+.shortcut-table th {
+  text-align: left;
+  padding: 3px 6px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+}
+
+.shortcut-table td {
+  padding: 4px 6px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.shortcut-key-cell {
+  text-align: right;
+}
+
+.shortcut-key-badge {
+  display: inline-block;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  color: var(--accent);
+  min-width: 28px;
+  text-align: center;
+}
+
+.shortcut-key-badge:hover {
+  border-color: var(--accent);
+}
+
+.shortcut-key-badge.capturing {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  animation: pulse 0.6s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Resize Canvas Dialog */
+.resize-dialog {
+  width: 360px;
+}
+
+.resize-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.resize-dim-row {
+  display: flex;
+  gap: 16px;
+}
+
+.resize-dim-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: var(--font-size);
+}
+
+.resize-dim-row input {
+  width: 80px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-primary);
+  padding: 3px 6px;
+  font-size: var(--font-size);
+}
+
+.resize-anchor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.resize-anchor-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size);
+}
+
+.resize-anchor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 24px);
+  gap: 3px;
+}
+
+.resize-anchor-cell {
+  width: 24px;
+  height: 24px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.resize-anchor-cell:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.resize-anchor-cell.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.resize-preview-info {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Preferences Dialog */
+.prefs-dialog {
+  width: 360px;
+}
+
+.prefs-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.pref-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size);
+}
+
+.pref-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pref-color-input {
+  width: 36px;
+  height: 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pref-range {
+  flex: 1;
+}
+
+.pref-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+
+/* Timeline linked cel badge */
+.timeline-cell-linked {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  font-size: 8px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.timeline-cell {
+  position: relative;
+}
+
+/* Custom brush indicator in ToolOptions */
+.custom-brush-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  border-left: 2px solid var(--accent);
+}
+
+.custom-brush-label {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+/* Touch support — prevent scroll on canvas area */
+#canvas-area {
+  touch-action: none;
+}
+
+/* Panel resizer (horizontal, for right panel) */
+#panel-resizer {
+  grid-area: panel-resizer;
+  width: 4px;
+  background: var(--border-color);
+  cursor: ew-resize;
+  transition: background 0.1s;
+}
+
+#panel-resizer:hover,
+#panel-resizer.dragging {
+  background: var(--accent);
+}
+
+/* Small buttons */
+.btn-small {
+  padding: 1px 6px;
+  font-size: 10px;
 }

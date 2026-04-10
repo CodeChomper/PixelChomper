@@ -1,4 +1,4 @@
-import { KEY_BINDINGS, clamp, MIN_ZOOM, MAX_ZOOM } from '../core/Constants.js';
+import { clamp, MIN_ZOOM, MAX_ZOOM } from '../core/Constants.js';
 
 /**
  * Handles mouse/keyboard input on the canvas area.
@@ -13,6 +13,7 @@ export class CanvasInput {
 
     this._spaceHeld = false;
     this._panStart = null;
+    this._pointers = new Map(); // for pinch-to-zoom
 
     this._bindEvents();
     this.state.events.on('tool:changed', () => this._updateCursor());
@@ -52,7 +53,9 @@ export class CanvasInput {
   }
 
   _onPointerDown(e) {
+    e.preventDefault(); // Prevent native touch scroll
     this.container.setPointerCapture(e.pointerId);
+    this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     // Space + click = pan
     if (this._spaceHeld || e.button === 1) {
@@ -78,6 +81,26 @@ export class CanvasInput {
   }
 
   _onPointerMove(e) {
+    // Pinch-to-zoom: handle two-finger gestures
+    if (this._pointers.size === 2) {
+      const prev = this._pointers.get(e.pointerId);
+      this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pts = [...this._pointers.values()];
+      const curDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (prev && this._lastPinchDist !== undefined) {
+        const ratio = curDist / this._lastPinchDist;
+        if (Math.abs(ratio - 1) > 0.02) {
+          const currentZoom = this.state.zoom;
+          const newZoom = clamp(Math.round(currentZoom * ratio), MIN_ZOOM, MAX_ZOOM);
+          if (newZoom !== currentZoom) this.state.setZoom(newZoom);
+        }
+      }
+      this._lastPinchDist = curDist;
+      return;
+    }
+
+    this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
     if (this.state.isPanning && this._panStart) {
       this.state.setPan(
         e.clientX - this._panStart.x,
@@ -98,6 +121,9 @@ export class CanvasInput {
   }
 
   _onPointerUp(e) {
+    this._pointers.delete(e.pointerId);
+    this._lastPinchDist = undefined;
+
     if (this.state.isPanning) {
       this.state.isPanning = false;
       this._panStart = null;
@@ -252,9 +278,9 @@ export class CanvasInput {
       return;
     }
 
-    // Tool shortcuts
+    // Tool shortcuts (use dynamic keybindings)
     const keyStr = e.shiftKey ? `shift+${e.key.toLowerCase()}` : e.key.toLowerCase();
-    const toolId = KEY_BINDINGS[keyStr];
+    const toolId = this.state.keyBindings[keyStr];
     if (toolId) {
       this.state.setTool(toolId);
       return;

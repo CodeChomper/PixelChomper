@@ -1,6 +1,8 @@
 import { EventBus } from './EventBus.js';
-import { TOOLS, BRUSH_SHAPES, DEFAULT_FG, DEFAULT_BG, DEFAULT_ZOOM, DEFAULT_BRUSH_SIZE } from './Constants.js';
+import { TOOLS, BRUSH_SHAPES, DEFAULT_FG, DEFAULT_BG, DEFAULT_ZOOM, DEFAULT_BRUSH_SIZE, DEFAULT_KEY_BINDINGS } from './Constants.js';
 import { History } from './History.js';
+import { Prefs } from './Prefs.js';
+import { Cel } from '../model/Cel.js';
 
 /**
  * Central application state. Single source of truth.
@@ -58,6 +60,30 @@ export class State {
     this.playbackFps = 10;
     this.playbackLoop = 'forward'; // 'forward' | 'reverse' | 'pingpong'
     this._pingpongDir = 1;
+
+    // Stage 7 state
+    this.symmetry = { horizontal: false, vertical: false };
+    this.tiledMode = false;
+    this.customBrush = null; // { offsets: [{dx, dy, color}] } | null
+    this.preferences = Prefs.getAll();
+
+    // Keyboard shortcut customization — load from localStorage
+    this.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+    try {
+      const saved = localStorage.getItem('pixelchomper:keybindings');
+      if (saved) {
+        const overrides = JSON.parse(saved);
+        // Merge: remove any existing bindings that are being overridden
+        for (const [k, toolId] of Object.entries(overrides)) {
+          // Remove old assignment for this toolId
+          for (const [ek] of Object.entries(this.keyBindings)) {
+            if (this.keyBindings[ek] === toolId) delete this.keyBindings[ek];
+          }
+          if (toolId !== null) this.keyBindings[k] = toolId;
+          else delete this.keyBindings[k];
+        }
+      }
+    } catch { /* ignore */ }
   }
 
   // ── Color / brush / zoom setters ──────────────────────────────────────────
@@ -119,8 +145,9 @@ export class State {
   // ── Undo / redo ───────────────────────────────────────────────────────────
 
   pushHistorySnapshot() {
+    const layer = this.activeLayer;
     const cel = this.activeCel;
-    if (!cel || !this.sprite) return;
+    if (!cel || !this.sprite || !layer) return;
     const imageData = cel.ctx.getImageData(0, 0, this.sprite.width, this.sprite.height);
     this.history.push(this.activeLayerIndex, this.activeFrameIndex, imageData, this.selection);
   }
@@ -425,12 +452,65 @@ export class State {
     const layer = this.activeLayer;
     const cel = this.activeCel;
     if (!layer || layer.locked || !cel) return;
-    const filtered = this.selection
+
+    // Apply selection mask
+    let filtered = this.selection
       ? pixels.filter(p => {
           const idx = p.y * this.sprite.width + p.x;
           return this.selection[idx] === 1;
         })
       : pixels;
+
+    // Apply symmetry mirroring
+    if (this.symmetry.horizontal || this.symmetry.vertical) {
+      const sw = this.sprite.width;
+      const sh = this.sprite.height;
+      const seen = new Set(filtered.map(p => `${p.x},${p.y}`));
+      const extra = [];
+      for (const p of filtered) {
+        if (this.symmetry.horizontal) {
+          const my = sh - 1 - p.y;
+          const k = `${p.x},${my}`;
+          if (!seen.has(k)) { seen.add(k); extra.push({ x: p.x, y: my, color: p.color }); }
+        }
+        if (this.symmetry.vertical) {
+          const mx = sw - 1 - p.x;
+          const k = `${mx},${p.y}`;
+          if (!seen.has(k)) { seen.add(k); extra.push({ x: mx, y: p.y, color: p.color }); }
+        }
+        if (this.symmetry.horizontal && this.symmetry.vertical) {
+          const mx = sw - 1 - p.x;
+          const my = sh - 1 - p.y;
+          const k = `${mx},${my}`;
+          if (!seen.has(k)) { seen.add(k); extra.push({ x: mx, y: my, color: p.color }); }
+        }
+      }
+      filtered = [...filtered, ...extra];
+    }
+
+    // Apply tiled mode — wrap pixels that go out of bounds
+    if (this.tiledMode) {
+      const sw = this.sprite.width;
+      const sh = this.sprite.height;
+      const seen = new Set(filtered.map(p => `${p.x},${p.y}`));
+      const extra = [];
+      for (const p of filtered) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const wx = p.x + dx * sw;
+            const wy = p.y + dy * sh;
+            // Only keep in-bounds wrapped pixels
+            if (wx >= 0 && wx < sw && wy >= 0 && wy < sh) {
+              const k = `${wx},${wy}`;
+              if (!seen.has(k)) { seen.add(k); extra.push({ x: wx, y: wy, color: p.color }); }
+            }
+          }
+        }
+      }
+      filtered = [...filtered, ...extra];
+    }
+
     cel.setPixels(filtered);
     this.events.emit('sprite:modified');
   }
@@ -508,5 +588,184 @@ export class State {
       this.recentColors = this.recentColors.slice(0, this._maxRecentColors);
     }
     this.events.emit('color:recent-changed', this.recentColors);
+  }
+
+  // ── Stage 7 — Symmetry ────────────────────────────────────────────────────
+
+  setSymmetry(horizontal, vertical) {
+    this.symmetry = { horizontal, vertical };
+    this.events.emit('symmetry:changed', this.symmetry);
+    this.events.emit('sprite:modified');
+  }
+
+  // ── Stage 7 — Tiled mode ──────────────────────────────────────────────────
+
+  setTiledMode(enabled) {
+    this.tiledMode = enabled;
+    this.events.emit('view:tiled-changed', enabled);
+    this.events.emit('sprite:modified');
+  }
+
+  // ── Stage 7 — Custom brush ────────────────────────────────────────────────
+
+  defineCustomBrush() {
+    const cel = this.activeCel;
+    if (!cel || !this.selection || !this.sprite) return;
+    const mask = this.selection;
+    const w = this.sprite.width;
+    const offsets = [];
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i]) continue;
+      const x = i % w;
+      const y = Math.floor(i / w);
+      const color = cel.getPixel(x, y);
+      if (color && color.a > 0) offsets.push({ dx: x, dy: y, color });
+    }
+    if (!offsets.length) return;
+    // Normalize offsets to center around the selection bounding box
+    const minX = Math.min(...offsets.map(o => o.dx));
+    const minY = Math.min(...offsets.map(o => o.dy));
+    const maxX = Math.max(...offsets.map(o => o.dx));
+    const maxY = Math.max(...offsets.map(o => o.dy));
+    const cx = Math.round((minX + maxX) / 2);
+    const cy = Math.round((minY + maxY) / 2);
+    this.customBrush = {
+      offsets: offsets.map(o => ({ dx: o.dx - cx, dy: o.dy - cy, color: o.color })),
+    };
+    this.events.emit('brush:custom-changed', this.customBrush);
+  }
+
+  clearCustomBrush() {
+    this.customBrush = null;
+    this.events.emit('brush:custom-changed', null);
+  }
+
+  snapToNearestPaletteColor(color) {
+    if (!this.activePalette || !this.activePalette.colors.length) return color;
+    let best = null;
+    let bestDist = Infinity;
+    for (const c of this.activePalette.colors) {
+      const dr = c.r - color.r;
+      const dg = c.g - color.g;
+      const db = c.b - color.b;
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < bestDist) { bestDist = dist; best = c; }
+    }
+    return best ? { ...best, a: color.a } : color;
+  }
+
+  // ── Stage 7 — Preferences ─────────────────────────────────────────────────
+
+  setPreference(key, value) {
+    Prefs.set(key, value);
+    this.preferences[key] = value;
+    this.events.emit('prefs:changed', this.preferences);
+  }
+
+  // ── Stage 7 — Key bindings ────────────────────────────────────────────────
+
+  setKeyBinding(keyStr, toolId) {
+    if (toolId === null) {
+      delete this.keyBindings[keyStr];
+    } else {
+      this.keyBindings[keyStr] = toolId;
+    }
+    this._saveKeyBindings();
+  }
+
+  resetKeyBindings() {
+    this.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+    try { localStorage.removeItem('pixelchomper:keybindings'); } catch { /* ignore */ }
+    this.events.emit('keybindings:changed', this.keyBindings);
+  }
+
+  _saveKeyBindings() {
+    // Save diff from defaults
+    const diff = {};
+    const allKeys = new Set([...Object.keys(DEFAULT_KEY_BINDINGS), ...Object.keys(this.keyBindings)]);
+    for (const k of allKeys) {
+      if (this.keyBindings[k] !== DEFAULT_KEY_BINDINGS[k]) {
+        diff[k] = this.keyBindings[k] ?? null;
+      }
+    }
+    try { localStorage.setItem('pixelchomper:keybindings', JSON.stringify(diff)); } catch { /* ignore */ }
+    this.events.emit('keybindings:changed', this.keyBindings);
+  }
+
+  // ── Stage 7 — Canvas resize ───────────────────────────────────────────────
+
+  resizeCanvas(newW, newH, anchorX = 0, anchorY = 0) {
+    if (!this.sprite) return;
+    const { width, height, layers, frames, cels } = this.sprite;
+    const offsetX = Math.round((newW - width) * anchorX);
+    const offsetY = Math.round((newH - height) * anchorY);
+
+    for (let li = 0; li < layers.length; li++) {
+      for (let fi = 0; fi < frames.length; fi++) {
+        const oldCel = cels[li][fi];
+        const newCel = new Cel(newW, newH);
+        newCel.ctx.drawImage(oldCel.canvas, offsetX, offsetY);
+        cels[li][fi] = newCel;
+      }
+    }
+    this.sprite.width = newW;
+    this.sprite.height = newH;
+    this.history.clear();
+    this.events.emit('sprite:loaded', this.sprite);
+  }
+
+  cropToSelection() {
+    if (!this.sprite || !this.selection) return;
+    const mask = this.selection;
+    const w = this.sprite.width;
+    const h = this.sprite.height;
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i]) continue;
+      const x = i % w;
+      const y = Math.floor(i / w);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+    if (minX > maxX || minY > maxY) return;
+    const nw = maxX - minX + 1;
+    const nh = maxY - minY + 1;
+
+    const { layers, frames, cels } = this.sprite;
+    for (let li = 0; li < layers.length; li++) {
+      for (let fi = 0; fi < frames.length; fi++) {
+        const oldCel = cels[li][fi];
+        const newCel = new Cel(nw, nh);
+        newCel.ctx.drawImage(oldCel.canvas, -minX, -minY);
+        cels[li][fi] = newCel;
+      }
+    }
+    this.sprite.width = nw;
+    this.sprite.height = nh;
+    this.selection = null;
+    this.history.clear();
+    this.events.emit('sprite:loaded', this.sprite);
+    this.events.emit('selection:changed', null);
+  }
+
+  // ── Stage 7 — Linked cels ─────────────────────────────────────────────────
+
+  linkCel(layerIndex, fromFrame, toFrame) {
+    if (!this.sprite) return;
+    const source = this.sprite.cels[layerIndex]?.[toFrame];
+    const target = this.sprite.cels[layerIndex]?.[fromFrame];
+    if (!source || !target) return;
+    target.linkTo(source);
+    this.events.emit('sprite:modified');
+  }
+
+  unlinkCel(layerIndex, frameIndex) {
+    if (!this.sprite) return;
+    const cel = this.sprite.cels[layerIndex]?.[frameIndex];
+    if (!cel) return;
+    cel.unlink();
+    this.events.emit('sprite:modified');
   }
 }

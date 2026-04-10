@@ -1,3 +1,5 @@
+import { ContextMenu } from './ContextMenu.js';
+
 /**
  * Timeline — bottom panel showing layers × frames grid with playback controls.
  *
@@ -150,6 +152,20 @@ export class Timeline {
       header.dataset.fi = fi;
       header.addEventListener('click', () => this.state.setActiveFrame(fi));
       header.addEventListener('dblclick', () => this._editFrameDuration(fi, header));
+      header.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        this.state.setActiveFrame(fi);
+        const items = [
+          { label: `Set Duration... (${this.state.sprite.frames[fi]?.duration ?? 100}ms)`, action: 'duration' },
+          { separator: true },
+          { label: 'Duplicate Frame', action: 'duplicate' },
+          { label: 'Delete Frame', action: 'delete' },
+        ];
+        const action = await ContextMenu.show(items, e.clientX, e.clientY);
+        if (action === 'duration') this._editFrameDuration(fi, header);
+        else if (action === 'duplicate') this.state.duplicateFrame();
+        else if (action === 'delete') this.state.removeFrame();
+      });
       grid.appendChild(header);
     }
 
@@ -177,6 +193,33 @@ export class Timeline {
           this.state.setActiveLayer(li);
           this.state.setActiveFrame(fi);
         });
+        cell.addEventListener('contextmenu', async (e) => {
+          e.preventDefault();
+          this.state.setActiveLayer(li);
+          this.state.setActiveFrame(fi);
+          const cel = this.state.sprite.cels[li]?.[fi];
+          const isLinked = cel && cel.linked;
+          const items = [
+            { label: isLinked ? 'Unlink Cel' : 'Link Cel to This Frame', action: isLinked ? 'unlink' : 'link' },
+            { separator: true },
+            { label: 'Duplicate Frame', action: 'dup-frame' },
+            { label: 'Delete Frame', action: 'del-frame' },
+            { separator: true },
+            { label: `Set Duration...`, action: 'duration' },
+          ];
+          const action = await ContextMenu.show(items, e.clientX, e.clientY);
+          if (action === 'unlink') this.state.unlinkCel(li, fi);
+          else if (action === 'link') {
+            const toFrame = parseInt(prompt(`Link frame ${fi + 1} to frame number:`)) - 1;
+            if (!isNaN(toFrame) && toFrame !== fi) this.state.linkCel(li, fi, toFrame);
+          }
+          else if (action === 'dup-frame') this.state.duplicateFrame();
+          else if (action === 'del-frame') this.state.removeFrame();
+          else if (action === 'duration') {
+            const header = this._grid.querySelector(`.timeline-frame-header[data-fi="${fi}"]`);
+            if (header) this._editFrameDuration(fi, header);
+          }
+        });
 
         // Thumbnail canvas
         const thumb = document.createElement('canvas');
@@ -184,6 +227,17 @@ export class Timeline {
         thumb.width = 28; thumb.height = 28;
         this._drawThumb(thumb, li, fi);
         cell.appendChild(thumb);
+
+        // Linked cel indicator
+        const cel = sprite.cels[li]?.[fi];
+        if (cel && cel.linked) {
+          const linkBadge = document.createElement('span');
+          linkBadge.className = 'timeline-cell-linked';
+          linkBadge.title = 'Linked cel';
+          linkBadge.textContent = '🔗';
+          cell.appendChild(linkBadge);
+        }
+
         grid.appendChild(cell);
       }
     }

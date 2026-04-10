@@ -1,5 +1,5 @@
 import { Tool } from './Tool.js';
-import { bresenhamLine, stampBrush, pixelPerfectFilter } from '../canvas/PixelUtils.js';
+import { bresenhamLine, stampBrush, stampCustomBrush, pixelPerfectFilter } from '../canvas/PixelUtils.js';
 import { rgbToHsl, hslToRgb } from '../core/ColorUtils.js';
 
 export class PencilTool extends Tool {
@@ -62,7 +62,11 @@ export class PencilTool extends Tool {
     const previewColor = { ...color, a: 180 };
     const rawLine = bresenhamLine(from.x, from.y, to.x, to.y);
     const line = state.pixelPerfect ? pixelPerfectFilter(rawLine) : rawLine;
-    const pixels = line.flatMap(p => stampBrush(p.x, p.y, previewColor, state.brushSize, state.brushShape));
+    const pixels = line.flatMap(p =>
+      state.customBrush
+        ? stampCustomBrush(p.x, p.y, state.customBrush, previewColor)
+        : stampBrush(p.x, p.y, previewColor, state.brushSize, state.brushShape),
+    );
     state.setPreviewPixels(pixels);
   }
 
@@ -76,7 +80,9 @@ export class PencilTool extends Tool {
     const seen = new Set();
 
     for (const p of line) {
-      const stamps = stampBrush(p.x, p.y, color, state.brushSize, state.brushShape);
+      const stamps = state.customBrush
+        ? stampCustomBrush(p.x, p.y, state.customBrush, color)
+        : stampBrush(p.x, p.y, color, state.brushSize, state.brushShape);
       for (const s of stamps) {
         const key = `${s.x},${s.y}`;
         if (seen.has(key)) continue;

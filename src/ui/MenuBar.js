@@ -18,6 +18,8 @@ export class MenuBar {
         { label: 'Export Sprite Sheet...', action: 'file:export-spritesheet' },
         { type: 'separator' },
         { label: 'Import Image...', action: 'file:import-image' },
+        { type: 'separator' },
+        { label: 'Preferences...', action: 'file:preferences' },
       ],
       'Edit': [
         { label: 'Undo', action: 'edit:undo', shortcut: 'Ctrl+Z' },
@@ -30,6 +32,12 @@ export class MenuBar {
         { label: 'Cut', action: 'edit:cut', shortcut: 'Ctrl+X' },
         { label: 'Copy', action: 'edit:copy', shortcut: 'Ctrl+C' },
         { label: 'Paste', action: 'edit:paste', shortcut: 'Ctrl+V' },
+        { type: 'separator' },
+        { label: 'Define Brush from Selection', action: 'edit:define-brush' },
+        { label: 'Clear Custom Brush', action: 'edit:clear-brush' },
+        { type: 'separator' },
+        { label: 'Canvas Size...', action: 'canvas:resize' },
+        { label: 'Crop to Selection', action: 'canvas:crop-to-selection' },
       ],
       'View': [
         { label: 'Toggle Grid', action: 'view:toggle-grid', shortcut: 'Ctrl+G' },
@@ -37,6 +45,11 @@ export class MenuBar {
         { label: 'Zoom In', action: 'view:zoom-in', shortcut: '+' },
         { label: 'Zoom Out', action: 'view:zoom-out', shortcut: '-' },
         { label: 'Fit to Screen', action: 'view:fit', shortcut: 'Ctrl+0' },
+        { type: 'separator' },
+        { label: 'Symmetry: Horizontal', action: 'view:symmetry-h' },
+        { label: 'Symmetry: Vertical', action: 'view:symmetry-v' },
+        { type: 'separator' },
+        { label: 'Tiled Mode', action: 'view:tiled-mode' },
       ],
       'Layer': [
         { label: 'Add Layer', action: 'layer:add' },
@@ -58,6 +71,7 @@ export class MenuBar {
       ],
       'Help': [
         { label: 'Keyboard Shortcuts...', action: 'help:shortcuts', shortcut: 'F1' },
+        { label: 'Edit Shortcuts...', action: 'help:edit-shortcuts' },
       ],
     };
 
