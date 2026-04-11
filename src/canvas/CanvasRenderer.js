@@ -12,7 +12,7 @@ export class CanvasRenderer {
     this.container = containerEl;
 
     this.displayCanvas = document.createElement('canvas');
-    this.displayCtx = this.displayCanvas.getContext('2d');
+    this.displayCtx = this.displayCanvas.getContext('2d', { willReadFrequently: true });
     this.container.appendChild(this.displayCanvas);
 
     this._checkerPattern = null;
