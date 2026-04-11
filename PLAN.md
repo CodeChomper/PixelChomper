@@ -386,7 +386,7 @@ PixelChomper/
 
 ### PocketBase Setup (manual — before coding)
 
-Create a collection named `gallery` in the PocketBase admin UI:
+Create a collection named `pc_gallery` in the PocketBase admin UI:
 
 | Field | Type | Notes |
 |-------|------|-------|

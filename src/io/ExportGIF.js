@@ -14,14 +14,18 @@
 export class ExportGIF {
   static download(sprite, filename = 'sprite.gif') {
     if (!sprite || !sprite.frames.length) return;
+    _triggerDownload(ExportGIF.toBlob(sprite), filename);
+  }
+
+  /** Return a GIF Blob without triggering a download. */
+  static toBlob(sprite) {
+    if (!sprite || !sprite.frames.length) return null;
     const { width: w, height: h } = sprite;
-
     const frames = sprite.frames.map((frame, fi) => ({
-      pixels:   _compositeFrame(sprite, fi, w, h), // Uint8ClampedArray RGBA
-      duration: frame.duration,                     // milliseconds
+      pixels:   _compositeFrame(sprite, fi, w, h),
+      duration: frame.duration,
     }));
-
-    _triggerDownload(_encodeGIF(frames, w, h), filename);
+    return _encodeGIF(frames, w, h);
   }
 }
 

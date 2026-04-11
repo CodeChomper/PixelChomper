@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PixelChomper Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Brand variables (matches style.css exactly) ───────────────────────── */
+    :root {
+      --bg-primary:       #1a1a1a;
+      --bg-secondary:     #222222;
+      --bg-tertiary:      #2a2a2a;
+      --bg-hover:         #333333;
+      --border-color:     #303030;
+      --text-primary:     #dddddd;
+      --text-secondary:   #aaaaaa;
+      --text-muted:       #777777;
+      --accent:           #8cc641;
+      --accent-hover:     #9ed44a;
+      --accent-secondary: #bf4e30;
+      --checker-light:    #3a3a3a;
+      --checker-dark:     #2e2e2e;
+      --font-family:      'Space Grotesk', Georgia, sans-serif;
+      --font-heading:     'Archivo Black', Arial, sans-serif;
+      --font-mono:        'Consolas', 'Monaco', monospace;
+    }
+
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Header (mirrors the editor menubar) ───────────────────────────────── */
+    header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 28px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: var(--font-heading);
+      font-size: 13px;
+      color: var(--accent);
+      padding: 4px 10px;
+      letter-spacing: .02em;
+    }
+
+    nav {
+      display: flex;
+      gap: 2px;
+    }
+
+    nav a {
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    nav a:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    nav a.active {
+      color: var(--text-primary);
+    }
+
+    .header-right {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      padding: 4px 10px;
+    }
+
+    /* ── Hero ───────────────────────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      padding: 40px 24px 28px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 28px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-heading);
+      font-size: 26px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+      letter-spacing: .02em;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* ── Main content ──────────────────────────────────────────────────────── */
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── Status / empty ────────────────────────────────────────────────────── */
+    #status {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 48px 0;
+      font-size: 13px;
+    }
+
+    /* ── Gallery grid ──────────────────────────────────────────────────────── */
+    #gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, 180px);
+      justify-content: center;
+      gap: 14px;
+    }
+
+    /* ── Card ───────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .12s, transform .12s, box-shadow .12s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    }
+
+    .card-img-wrap {
+      position: relative;
+      background:
+        repeating-conic-gradient(
+          var(--checker-light) 0% 25%,
+          var(--checker-dark)  0% 50%
+        ) 0 0 / 16px 16px;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .card-img-wrap img {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .badge {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: var(--accent-secondary);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      padding: 1px 5px;
+      border-radius: 2px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .card-info {
+      padding: 7px 9px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-primary);
+    }
+
+    .card-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Load more ─────────────────────────────────────────────────────────── */
+    .load-more-wrap {
+      text-align: center;
+      margin-top: 32px;
+    }
+
+    #load-more {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      padding: 6px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--font-family);
+      display: none;
+      transition: border-color .12s, background .12s;
+    }
+
+    #load-more:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+    }
+
+    #load-more:disabled { opacity: .45; cursor: default; }
+
+    /* ── Lightbox ───────────────────────────────────────────────────────────── */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.88);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px;
+    }
+
+    #lightbox.open { display: flex; }
+
+    #lb-close {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+      background: none;
+      border: none;
+      padding: 4px 8px;
+      font-family: var(--font-mono);
+    }
+
+    #lb-close:hover { color: var(--text-primary); }
+
+    #lb-img-wrap {
+      background:
+        repeating-conic-gradient(
+          var(--checker-light) 0% 25%,
+          var(--checker-dark)  0% 50%
+        ) 0 0 / 24px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      max-width: min(90vw, 90vh);
+      max-height: min(80vw, 75vh);
+    }
+
+    #lb-img {
+      max-width: 100%;
+      max-height: min(80vw, 75vh);
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      display: block;
+    }
+
+    #lb-caption { text-align: center; }
+
+    #lb-title {
+      font-family: var(--font-heading);
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+
+    #lb-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 4px;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Highlight (post-share deep-link) ─────────────────────────────────── */
+    @keyframes card-pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(140,198,65,0);   border-color: var(--border-color); }
+      20%  { box-shadow: 0 0 0 4px rgba(140,198,65,.55); border-color: var(--accent); }
+      60%  { box-shadow: 0 0 0 4px rgba(140,198,65,.3);  border-color: var(--accent); }
+      100% { box-shadow: 0 0 0 0   rgba(140,198,65,0);   border-color: var(--border-color); }
+    }
+
+    .card--highlight { animation: card-pulse 2s ease-out forwards; }
+
+    /* ── Scrollbar (matches editor) ────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+    /* ── Responsive ────────────────────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      #gallery-grid { grid-template-columns: repeat(auto-fit, 140px); gap: 10px; }
+      .hero { padding: 24px 16px 18px; }
+      .hero h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="logo"><span style="color:#bf4e30">Pixel</span><span style="color:#9ada47">Chomper</span> <span style="color:#dddddd">Gallery</span></span>
+    <nav>
+      <a href="index.html">Editor</a>
+    </nav>
+    <span class="header-right">community gallery</span>
+  </header>
+
+  <div class="hero">
+    <h1>Gallery</h1>
+    <p>Pixel art created and shared by the community</p>
+  </div>
+
+  <main>
+    <div id="status">Loading…</div>
+    <div id="gallery-grid"></div>
+    <div class="load-more-wrap">
+      <button id="load-more">Load more</button>
+    </div>
+  </main>
+
+  <!-- Lightbox -->
+  <div id="lightbox" role="dialog" aria-modal="true">
+    <button id="lb-close" aria-label="Close">×</button>
+    <div id="lb-img-wrap">
+      <img id="lb-img" src="" alt="">
+    </div>
+    <div id="lb-caption">
+      <div id="lb-title"></div>
+      <div id="lb-meta"></div>
+    </div>
+  </div>
+
+  <footer>
+    made with <a href="index.html">PixelChomper</a>
+  </footer>
+
+  <script type="module" src="src/gallery.js"></script>
+</body>
+</html>

@@ -28,6 +28,7 @@ Then open `http://localhost:8080`
 | 5 | COMPLETE | File I/O & undo/redo (PNG/GIF export, project save/load, history) Animated GIF Export Not Working |
 | 6 | COMPLETE | Animation & timeline (frames, onion skinning, playback, frame tags) |
 | 7 | COMPLETE | Advanced features (symmetry, tiled mode, canvas resize, custom brushes, contour, replace color, layer groups, linked cels, shortcut editor, preferences, context menus, panel resizing, touch support) |
+| 8 | COMPLETE | Virtual Gallery (PocketBase upload, Share to Gallery dialog, gallery.html standalone page, lightbox, pagination) |
 
 See `PLAN.md` for full implementation details per stage.
 

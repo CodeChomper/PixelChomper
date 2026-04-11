@@ -19,6 +19,9 @@ export class MenuBar {
         { type: 'separator' },
         { label: 'Import Image...', action: 'file:import-image' },
         { type: 'separator' },
+        { label: 'Share to Gallery...', action: 'file:share-gallery' },
+        { label: 'View Gallery', action: 'file:view-gallery' },
+        { type: 'separator' },
         { label: 'Preferences...', action: 'file:preferences' },
       ],
       'Edit': [
@@ -85,10 +88,10 @@ export class MenuBar {
     // App title
     const title = document.createElement('span');
     title.className = 'menu-item';
-    title.textContent = 'PixelChomper';
-    title.style.fontWeight = '700';
-    title.style.color = 'var(--accent)';
-    title.style.cursor = 'default';
+    title.innerHTML = '<span style="color:#bf4e30">Pixel</span><span style="color:#9ada47">Chomper</span> <span style="color:#dddddd">Editor</span>';
+    title.style.fontFamily = 'var(--font-heading)';
+    title.style.fontSize   = '13px';
+    title.style.cursor     = 'default';
     this.container.appendChild(title);
 
     for (const [menuName, items] of Object.entries(this._menus)) {
@@ -143,6 +146,18 @@ export class MenuBar {
         }
       });
     }
+
+    // Gallery link — right-aligned, prominent
+    const galleryLink = document.createElement('a');
+    galleryLink.href      = 'gallery.html';
+    galleryLink.className = 'menu-item menu-gallery-link';
+    galleryLink.textContent = '✦ Gallery';
+    galleryLink.style.cssText =
+      'margin-left:auto; color:var(--accent); font-weight:700; ' +
+      'letter-spacing:.03em; opacity:.95;';
+    galleryLink.addEventListener('mouseenter', () => galleryLink.style.opacity = '1');
+    galleryLink.addEventListener('mouseleave', () => galleryLink.style.opacity = '.95');
+    this.container.appendChild(galleryLink);
 
     // Close menus on click outside
     document.addEventListener('click', (e) => {

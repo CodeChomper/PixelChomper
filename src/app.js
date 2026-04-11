@@ -36,6 +36,7 @@ import { ExportGIF } from './io/ExportGIF.js';
 import { ExportSpriteSheet } from './io/ExportSpriteSheet.js';
 import { ImportSpriteSheet } from './io/ImportSpriteSheet.js';
 import { ProjectFile } from './io/ProjectFile.js';
+import { ShareGallery } from './io/ShareGallery.js';
 
 /**
  * Tool manager — registers tools, returns the active one.
@@ -106,6 +107,8 @@ class App {
     this.state.events.on('file:export-gif', () => ExportGIF.download(this.state.sprite));
     this.state.events.on('file:export-spritesheet', () => this._showExportSpritesheetDialog());
     this.state.events.on('file:import-image', () => this._importImage());
+    this.state.events.on('file:share-gallery', () => this._shareToGallery());
+    this.state.events.on('file:view-gallery', () => { location.href = 'gallery.html'; });
 
     // Edit: undo/redo
     this.state.events.on('edit:undo', () => this.state.undo());
@@ -194,8 +197,47 @@ class App {
     // Stage 7: Preferences
     this.state.events.on('file:preferences', () => PrefsDialog.show(this.state));
 
-    // Show new sprite dialog on launch
+    // Clear autosave when the user explicitly requests a new sprite
+    this.state.events.on('file:new', () => {
+      try { localStorage.removeItem('pixelchomper:autosave'); } catch { /* ignore */ }
+    });
+
+    // Autosave on tab/window close
+    window.addEventListener('beforeunload', () => this._autoSave());
+
+    // Show new sprite dialog on launch (or silently restore last session)
+    this._startupLoad();
+  }
+
+  /** Called once on startup — restores autosave or shows new-sprite dialog. */
+  async _startupLoad() {
+    const raw = localStorage.getItem('pixelchomper:autosave');
+    if (raw) {
+      try {
+        const project = JSON.parse(raw);
+        const result  = await ProjectFile.fromJSON(project);
+        this.state.setSprite(result.sprite);
+        this.state.setActiveLayer(result.activeLayerIndex);
+        this.state.setActiveFrame(result.activeFrameIndex ?? 0);
+        this._fitToScreen();
+        return; // session restored — skip new-sprite dialog
+      } catch {
+        // Corrupt autosave; fall through to new-sprite dialog
+        localStorage.removeItem('pixelchomper:autosave');
+      }
+    }
     this._showNewSpriteDialog();
+  }
+
+  /** Serialize the current sprite to localStorage. Silently skips if too large. */
+  _autoSave() {
+    if (!this.state.sprite) return;
+    try {
+      const project = ProjectFile.toJSON(this.state);
+      localStorage.setItem('pixelchomper:autosave', JSON.stringify(project));
+    } catch {
+      // QuotaExceededError or other — autosave is best-effort
+    }
   }
 
   _loadLastSpriteSettings() {
@@ -294,6 +336,11 @@ class App {
     if (!sprite) return;
     this.state.setSprite(sprite);
     this._fitToScreen();
+  }
+
+  async _shareToGallery() {
+    if (!this.state.sprite) return;
+    await ShareGallery.upload(this.state.sprite);
   }
 
   async _showResizeCanvasDialog() {

@@ -13,36 +13,50 @@ const FILE_EXTENSION = '.pixelchomper';
 
 export class ProjectFile {
   /**
+   * Serialize the current state to a plain object (no download).
+   * @param {import('../core/State.js').State} state
+   * @returns {object}
+   */
+  static toJSON(state) {
+    if (!state.sprite) return null;
+    const { sprite } = state;
+    const layers = sprite.layers.map((layer, li) => ({
+      name:      layer.name,
+      visible:   layer.visible,
+      locked:    layer.locked,
+      opacity:   layer.opacity,
+      blendMode: layer.blendMode,
+      cels:      sprite.cels[li].map(cel => cel.canvas.toDataURL('image/png')),
+    }));
+    return {
+      version:          PROJECT_VERSION,
+      width:            sprite.width,
+      height:           sprite.height,
+      activeLayerIndex: state.activeLayerIndex,
+      activeFrameIndex: state.activeFrameIndex,
+      layers,
+      frames:           sprite.frames.map(f => ({ duration: f.duration })),
+      tags:             sprite.tags || [],
+    };
+  }
+
+  /**
+   * Deserialize a plain project object into a sprite + indices.
+   * @param {object} project
+   * @returns {Promise<{sprite:Sprite, activeLayerIndex:number, activeFrameIndex:number}>}
+   */
+  static fromJSON(project) {
+    return _deserialize(project);
+  }
+
+  /**
    * Serialize the current state and trigger a download.
    * @param {import('../core/State.js').State} state
    * @param {string} [filename]
    */
-  static async save(state, filename = 'sprite.pixelchomper') {
-    if (!state.sprite) return;
-    const { sprite } = state;
-
-    const layers = sprite.layers.map((layer, li) => ({
-      name: layer.name,
-      visible: layer.visible,
-      locked: layer.locked,
-      opacity: layer.opacity,
-      blendMode: layer.blendMode,
-      cels: sprite.cels[li].map(cel => cel.canvas.toDataURL('image/png')),
-    }));
-
-    const frames = sprite.frames.map(f => ({ duration: f.duration }));
-
-    const project = {
-      version: PROJECT_VERSION,
-      width: sprite.width,
-      height: sprite.height,
-      activeLayerIndex: state.activeLayerIndex,
-      activeFrameIndex: state.activeFrameIndex,
-      layers,
-      frames,
-      tags: sprite.tags || [],
-    };
-
+  static save(state, filename = 'sprite.pixelchomper') {
+    const project = ProjectFile.toJSON(state);
+    if (!project) return;
     const blob = new Blob([JSON.stringify(project)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
