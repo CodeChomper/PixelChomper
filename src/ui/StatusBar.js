@@ -1,4 +1,4 @@
-const VERSION = '0.1.0';
+const VERSION = '0.5.0';
 
 /**
  * Bottom status bar — shows cursor position, canvas size, zoom level, tool name, frame number.

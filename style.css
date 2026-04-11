@@ -16,7 +16,7 @@
   --danger: #bf4e30;
   --success: #8cc641;
   --warning: #d4a017;
-  --toolbar-width: 40px;
+  --toolbar-width: 55px;
   --menubar-height: 28px;
   --tooloptions-height: 32px;
   --statusbar-height: 24px;
@@ -167,8 +167,8 @@ html, body {
 }
 
 .tool-btn {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -180,6 +180,23 @@ html, body {
   font-size: 14px;
   font-family: var(--font-mono);
   position: relative;
+}
+
+.tool-btn .tool-icon {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.tool-btn:hover .tool-icon {
+  opacity: 1;
+}
+
+.tool-btn.active .tool-icon {
+  opacity: 1;
+  filter: brightness(0) invert(1);
 }
 
 .tool-btn:hover {
