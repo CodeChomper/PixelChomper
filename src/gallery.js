@@ -11,6 +11,7 @@
  *   undiscovered — client-side: unrated artwork sorted oldest-first
  */
 import { POCKETBASE_URL, GALLERY_COLLECTION, RATINGS_COLLECTION } from './core/Config.js';
+import { CookieNotice } from './ui/CookieNotice.js';
 
 const PER_PAGE     = 48;
 let   _currentPage = 1;
@@ -46,6 +47,7 @@ function _saveMyVote(artworkId, type) {
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  CookieNotice.init();
   _loadPage(1);
 
   // Sort toolbar

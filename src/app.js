@@ -37,6 +37,7 @@ import { ExportSpriteSheet } from './io/ExportSpriteSheet.js';
 import { ImportSpriteSheet } from './io/ImportSpriteSheet.js';
 import { ProjectFile } from './io/ProjectFile.js';
 import { ShareGallery } from './io/ShareGallery.js';
+import { CookieNotice } from './ui/CookieNotice.js';
 
 /**
  * Tool manager — registers tools, returns the active one.
@@ -357,6 +358,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
   _initTimelineResizer();
   _initPanelResizer();
+  CookieNotice.init();
 });
 
 function _initTimelineResizer() {
