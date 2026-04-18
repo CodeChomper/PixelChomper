@@ -34,6 +34,7 @@ export class ShareGallery {
       const res = await fetch(url, { method: 'POST', body: form });
 
       if (!res.ok) {
+        if (res.status === 429) throw new Error('Rate limit reached. Please wait 5 minutes and try again.');
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `HTTP ${res.status}`);
       }

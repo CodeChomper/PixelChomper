@@ -61,6 +61,8 @@ export class State {
     this.playbackLoop = 'forward'; // 'forward' | 'reverse' | 'pingpong'
     this._pingpongDir = 1;
 
+    this.selectionBBox = null; // { x0, y0, x1, y1 } bounding box of current selection
+
     // Stage 7 state
     this.symmetry = { horizontal: false, vertical: false };
     this.tiledMode = false;
@@ -170,6 +172,9 @@ export class State {
       this.events.emit('frame:changed', this.activeFrameIndex);
     }
     this.selection = snapshot.selectionMask;
+    this.selectionBBox = (snapshot.selectionMask && this.sprite)
+      ? this._computeSelectionBBox(snapshot.selectionMask, this.sprite.width, this.sprite.height)
+      : null;
     this.events.emit('selection:changed', this.selection);
     this.events.emit('sprite:modified');
   }
@@ -192,6 +197,9 @@ export class State {
       this.events.emit('frame:changed', this.activeFrameIndex);
     }
     this.selection = snapshot.selectionMask;
+    this.selectionBBox = (snapshot.selectionMask && this.sprite)
+      ? this._computeSelectionBBox(snapshot.selectionMask, this.sprite.width, this.sprite.height)
+      : null;
     this.events.emit('selection:changed', this.selection);
     this.events.emit('sprite:modified');
   }
@@ -522,12 +530,29 @@ export class State {
 
   setSelection(mask) {
     this.selection = mask;
+    this.selectionBBox = (mask && this.sprite)
+      ? this._computeSelectionBBox(mask, this.sprite.width, this.sprite.height)
+      : null;
     this.events.emit('selection:changed', mask);
   }
 
   clearSelection() {
     this.selection = null;
+    this.selectionBBox = null;
     this.events.emit('selection:changed', null);
+  }
+
+  _computeSelectionBBox(mask, w, h) {
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i]) continue;
+      const x = i % w, y = Math.floor(i / w);
+      if (x < x0) x0 = x;
+      if (y < y0) y0 = y;
+      if (x > x1) x1 = x;
+      if (y > y1) y1 = y;
+    }
+    return x1 >= 0 ? { x0, y0, x1, y1 } : null;
   }
 
   // ── View ──────────────────────────────────────────────────────────────────

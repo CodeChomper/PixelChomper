@@ -1,5 +1,6 @@
 import { CHECKER_SIZE } from '../core/Constants.js';
 import { getBrushStamp } from '../canvas/PixelUtils.js';
+import { getSelectionHandles, HANDLE_NAMES } from '../tools/SelectRectTool.js';
 
 /**
  * Renders the sprite onto the visible display canvas.
@@ -198,6 +199,12 @@ export class CanvasRenderer {
       this._drawSelection(ctx, ox, oy, zoom);
     }
 
+    // Selection resize handles (visible for any selection tool)
+    const selectionTools = ['select_rect', 'select_lasso', 'magic_wand'];
+    if (this.state.selection && selectionTools.includes(this.state.activeTool) && this.state.selectionBBox) {
+      this._drawSelectionHandles(ctx, ox, oy, zoom);
+    }
+
     // Symmetry axes
     if (this.state.symmetry && (this.state.symmetry.horizontal || this.state.symmetry.vertical)) {
       this._drawSymmetryAxes(ctx, ox, oy, sw, sh);
@@ -245,11 +252,26 @@ export class CanvasRenderer {
 
   _drawPreviewPixels(ctx, ox, oy, zoom) {
     const pixels = this.state.previewPixels;
+    const erasePixels = [];
     const byColor = new Map();
     for (const p of pixels) {
-      const key = `${p.color.r},${p.color.g},${p.color.b},${p.color.a}`;
-      if (!byColor.has(key)) byColor.set(key, []);
-      byColor.get(key).push(p);
+      if (p.color.a === 0) {
+        erasePixels.push(p);
+      } else {
+        const key = `${p.color.r},${p.color.g},${p.color.b},${p.color.a}`;
+        if (!byColor.has(key)) byColor.set(key, []);
+        byColor.get(key).push(p);
+      }
+    }
+    // Erase pixels clear the underlying canvas content (used by resize preview)
+    if (erasePixels.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      for (const p of erasePixels) {
+        ctx.fillRect(ox + p.x * zoom, oy + p.y * zoom, zoom, zoom);
+      }
+      ctx.restore();
     }
     for (const [key, group] of byColor) {
       const [r, g, b, a] = key.split(',').map(Number);
@@ -258,6 +280,23 @@ export class CanvasRenderer {
         ctx.fillRect(ox + p.x * zoom, oy + p.y * zoom, zoom, zoom);
       }
     }
+  }
+
+  _drawSelectionHandles(ctx, ox, oy, zoom) {
+    const bbox = this.state.selectionBBox;
+    if (!bbox) return;
+    const handles = getSelectionHandles(bbox, zoom, ox, oy);
+    const S = 5; // half-size of each handle square in screen pixels
+    ctx.save();
+    for (const name of HANDLE_NAMES) {
+      const { x, y } = handles[name];
+      ctx.fillStyle = 'white';
+      ctx.fillRect(x - S, y - S, S * 2, S * 2);
+      ctx.strokeStyle = '#3399ff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - S + 0.75, y - S + 0.75, S * 2 - 1.5, S * 2 - 1.5);
+    }
+    ctx.restore();
   }
 
   _drawSelection(ctx, ox, oy, zoom) {
